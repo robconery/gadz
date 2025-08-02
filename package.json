@@ -1,0 +1,21 @@
+{
+  "name": "bongo",
+  "module": "index.ts",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/pluralize": "^0.0.33"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "dev": "bun run --watch example.ts",
+    "example": "bun run example.ts",
+    "test": "bun test",
+    "build": "bun build index.ts --outdir ./dist"
+  },
+  "type": "module",
+  "dependencies": {
+    "pluralize": "^8.0.0"
+  }
+}
