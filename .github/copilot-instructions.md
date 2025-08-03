@@ -3,8 +3,14 @@
  - The SQLite database will live in `db/dev.db`
  - NEVER edit `package.json` to add modules, ALWAYS run `npm i` or `bun add`
  - Try to adhere to the MongoDB API as much as possible, but types are more important.
+ - SQLite will be managed using Bun's built-in SQLite stuff.
  - Divide and separate the functionality as needed, but the API for Gadz should come from one place: `index.ts` in the root.
  - DO NOT create extra documents, like READMEs, examples, or tests. I'll create those when ready
+ - Tests should live in the `test` directory and use Bun's testing tools.
+
+## Docs
+
+Any time you create a markdown document, add emojis for readability and a bit of fun.
 
 ## The MongoDB API for SQLite
 

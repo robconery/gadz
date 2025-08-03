@@ -1,41 +1,35 @@
 // Connection management
-export { connect, close, getDatabase, collections } from "./src/connection.js";
-
-// Core operations
 export { 
-  get, 
-  find, 
-  findOne, 
-  where, 
-  save, 
-  saveMany, 
-  updateMany, 
-  deleteMany 
-} from "./src/operations.js";
+  connect, 
+  close, 
+  collections, 
+  withConnection, 
+  withTransaction, 
+  getPoolStatus, 
+  isConnected, 
+  maintenance,
+  getDatabaseStats,
+  type PooledDatabase, 
+  type ConnectionConfig 
+} from "./src/connection";
 
-// Validation and indexing
-export { 
-  isUnique, 
-  createIndex, 
-  unique, 
-  checkConstraint 
-} from "./src/validation.js";
+// TODO: Core operations (to be implemented)
+// export { 
+//   get, 
+//   find, 
+//   findOne, 
+//   where, 
+//   save, 
+//   saveMany, 
+//   updateMany, 
+//   deleteMany 
+// } from "./src/operations";
 
-// Raw SQL
-export { raw } from "./src/raw.js";
-
-// Types
-export type {
-  Filter,
-  UpdateOperators,
-  UpdateOptions,
-  FindOptions,
-  IndexOptions,
-  Document,
-  Constructor,
-  UpdateResult,
-  DeleteResult,
-  ComparisonOperators,
-  LogicalOperators,
-  QueryOperators
-} from "./src/types.js";
+// TODO: Validation and indexing (to be implemented)
+// export { 
+//   isUnique, 
+//   createIndex, 
+//   unique, 
+//   checkConstraint,
+//   raw
+// } from "./src/validation";
