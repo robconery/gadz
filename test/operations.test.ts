@@ -10,6 +10,8 @@ import {
   collections,
   type DocumentWithMeta
 } from "../index";
+import * as fs from "fs";
+import * as path from "path";
 
 // Test classes following the MongoDB API pattern
 class User {
@@ -44,16 +46,35 @@ class Product {
 }
 
 describe("MongoDB API Operations", () => {
+  const testDbPath = path.join(process.cwd(), "db", "test.db");
+  
   beforeEach(async () => {
     if (isConnected()) {
       await close();
     }
+    
+    // Clean up test database file if it exists
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+    
+    // Ensure db directory exists
+    const dbDir = path.dirname(testDbPath);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+    
     await connect();
   });
 
   afterEach(async () => {
     if (isConnected()) {
       await close();
+    }
+    
+    // Clean up test database file
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
     }
   });
 

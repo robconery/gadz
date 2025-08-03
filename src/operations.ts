@@ -196,44 +196,64 @@ function buildOrderClause(sort?: { [key: string]: 1 | -1 }): string {
  * Follows late checkout/early checkin pattern
  */
 export async function save<T>(document: T, options: SaveOptions = { upsert: true }): Promise<T & DocumentWithMeta> {
-  const tableName = getCollectionNameFromInstance(document);
+  let tableName: string;
+  
+  // Handle case where document is a plain object (from spreading) but has an ID
+  const constructorName = (document as any).constructor.name;
+  if (constructorName === 'Object' && (document as any).id) {
+    // For plain objects with ID, we need to find which table contains this ID
+    // We'll scan common table names - this is a fallback for spread objects
+    const possibleTables = await withConnection(async (pooledDb) => {
+      const query = pooledDb.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+      const tables = query.all() as { name: string }[];
+      return tables.map(t => t.name);
+    });
+    
+    let foundTable: string | null = null;
+    for (const table of possibleTables) {
+      const exists = await withConnection(async (pooledDb) => {
+        try {
+          const query = pooledDb.db.query(`SELECT 1 FROM ${table} WHERE id = ? LIMIT 1`);
+          return query.get((document as any).id) !== null;
+        } catch {
+          return false;
+        }
+      });
+      if (exists) {
+        foundTable = table;
+        break;
+      }
+    }
+    
+    if (!foundTable) {
+      throw new Error('Cannot determine collection name from plain object with unknown ID. Please use a proper class instance.');
+    }
+    tableName = foundTable;
+  } else {
+    tableName = getCollectionNameFromInstance(document);
+  }
   
   // Ensure table exists
   await ensureTable(tableName);
   
-  return await withConnection(async (pooledDb) => {
+  return await withTransaction(async (pooledDb) => {
     // Remove timestamp fields from document data before storing
     const { id, created_at, updated_at, ...docWithoutMeta } = document as any;
     const docData = JSON.stringify(docWithoutMeta);
     const hasId = (document as any).id;
     
     if (hasId) {
-      // Update existing document
-      const updateQuery = pooledDb.db.query(`
-        UPDATE ${tableName} 
-        SET data = ?, updated_at = CURRENT_TIMESTAMP 
-        WHERE id = ?
+      // Use INSERT ... ON CONFLICT for proper upsert behavior
+      const upsertQuery = pooledDb.db.query(`
+        INSERT INTO ${tableName} (id, data) 
+        VALUES (?, ?)
+        ON CONFLICT(id) DO UPDATE SET 
+          data = excluded.data,
+          updated_at = datetime('now')
+        RETURNING id, data, created_at, updated_at
       `);
       
-      const result = updateQuery.run(docData, hasId);
-      
-      if (result.changes === 0 && !options.upsert) {
-        throw new Error(`Document with id ${hasId} not found`);
-      }
-      
-      if (result.changes === 0 && options.upsert) {
-        // Insert with specific ID
-        const insertQuery = pooledDb.db.query(`
-          INSERT INTO ${tableName} (id, data) VALUES (?, ?)
-        `);
-        insertQuery.run(hasId, docData);
-      }
-      
-      // Get the updated record with timestamps
-      const selectQuery = pooledDb.db.query(`
-        SELECT id, data, created_at, updated_at FROM ${tableName} WHERE id = ?
-      `);
-      const row = selectQuery.get(hasId) as { 
+      const row = upsertQuery.get(hasId, docData) as { 
         id: number; 
         data: string; 
         created_at: string; 
@@ -248,19 +268,14 @@ export async function save<T>(document: T, options: SaveOptions = { upsert: true
         updated_at: row.updated_at
       } as T & DocumentWithMeta;
     } else {
-      // Insert new document
+      // Insert new document using RETURNING to get inserted data
       const insertQuery = pooledDb.db.query(`
-        INSERT INTO ${tableName} (data) VALUES (?)
+        INSERT INTO ${tableName} (data) 
+        VALUES (?)
+        RETURNING id, data, created_at, updated_at
       `);
       
-      const result = insertQuery.run(docData);
-      const newId = Number(result.lastInsertRowid);
-      
-      // Get the inserted record with timestamps
-      const selectQuery = pooledDb.db.query(`
-        SELECT id, data, created_at, updated_at FROM ${tableName} WHERE id = ?
-      `);
-      const row = selectQuery.get(newId) as { 
+      const row = insertQuery.get(docData) as { 
         id: number; 
         data: string; 
         created_at: string; 

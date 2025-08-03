@@ -92,12 +92,14 @@ class ConnectionManager {
     // Determine database path based on environment
     let dbPath: string;
     if (process.env.NODE_ENV === "test") {
-      dbPath = ":memory:";
+      // Use a test database file instead of in-memory for proper isolation
+      dbPath = process.env.SQLITE_TEST_PATH || config.path || path.join(process.cwd(), "db", "test.db");
     } else {
       dbPath = process.env.SQLITE_PATH || config.path || path.join(process.cwd(), "db", "dev.db");
     }
 
     // For in-memory databases, create a shared database instance
+    // (This code path is now unused in tests, but kept for potential future use)
     if (dbPath === ":memory:") {
       this.sharedDatabase = new Database(":memory:");
       this.configureDatabase(this.sharedDatabase, true);
@@ -112,6 +114,7 @@ class ConnectionManager {
             // Use the shared in-memory database
             db = this.sharedDatabase;
           } else {
+            // Create a new Database instance for each pooled connection for file-based databases
             db = new Database(dbPath);
             this.configureDatabase(db, false);
           }
