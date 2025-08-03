@@ -1,6 +1,6 @@
 // Collection class - implements MongoDB collection API for Gadz
 import { Database } from 'bun:sqlite';
-import { BongoObjectId } from './objectid.js';
+import { GadzObjectId } from './objectid.js';
 import { QueryBuilder } from './query-builder.js';
 import type {
   Document,
@@ -53,7 +53,7 @@ export class Collection {
     const doc = { ...document };
     
     if (!doc._id) {
-      doc._id = new BongoObjectId();
+      doc._id = new GadzObjectId();
     }
 
     const id = doc._id!.toString();
@@ -76,7 +76,7 @@ export class Collection {
   }
 
   insertMany(documents: Document[]): InsertManyResult {
-    const insertedIds: (BongoObjectId | string)[] = [];
+    const insertedIds: (GadzObjectId | string)[] = [];
     const stmt = this.db.prepare(`INSERT INTO "${this.name}" (_id, data) VALUES (?, ?)`);
     
     // Use Bun SQLite transaction
@@ -86,7 +86,7 @@ export class Collection {
         const doc = { ...document };
         
         if (!doc._id) {
-          doc._id = new BongoObjectId();
+          doc._id = new GadzObjectId();
         }
 
         const id = doc._id!.toString();

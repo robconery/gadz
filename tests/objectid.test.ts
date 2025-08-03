@@ -1,11 +1,11 @@
-// Comprehensive tests for BongoObjectId
+// Comprehensive tests for GadzObjectId
 import { test, expect, describe } from 'bun:test';
-import { BongoObjectId } from '../index.js';
+import { GadzObjectId } from '../index.js';
 
-describe('BongoObjectId', () => {
+describe('GadzObjectId', () => {
   test('should generate unique ObjectIds', () => {
-    const id1 = new BongoObjectId();
-    const id2 = new BongoObjectId();
+    const id1 = new GadzObjectId();
+    const id2 = new GadzObjectId();
     
     expect(id1.toString()).not.toBe(id2.toString());
     expect(id1.toString()).toHaveLength(24);
@@ -14,7 +14,7 @@ describe('BongoObjectId', () => {
 
   test('should create from valid hex string', () => {
     const hexString = '507f1f77bcf86cd799439011';
-    const id = new BongoObjectId(hexString);
+    const id = new GadzObjectId(hexString);
     
     expect(id.toString()).toBe(hexString);
     expect(id.toHexString()).toBe(hexString);
@@ -22,42 +22,42 @@ describe('BongoObjectId', () => {
 
   test('should create from Buffer', () => {
     const buffer = Buffer.from('507f1f77bcf86cd799439011', 'hex');
-    const id = new BongoObjectId(buffer);
+    const id = new GadzObjectId(buffer);
     
     expect(id.toString()).toBe('507f1f77bcf86cd799439011');
   });
 
   test('should create from another ObjectId', () => {
-    const id1 = new BongoObjectId();
-    const id2 = new BongoObjectId(id1);
+    const id1 = new GadzObjectId();
+    const id2 = new GadzObjectId(id1);
     
     expect(id1.toString()).toBe(id2.toString());
     expect(id1).not.toBe(id2); // Different instances
   });
 
   test('should throw on invalid string length', () => {
-    expect(() => new BongoObjectId('invalid')).toThrow('Invalid ObjectId string');
-    expect(() => new BongoObjectId('507f1f77bcf86cd79943901')).toThrow('Invalid ObjectId string'); // Too short
-    expect(() => new BongoObjectId('507f1f77bcf86cd7994390112')).toThrow('Invalid ObjectId string'); // Too long
+    expect(() => new GadzObjectId('invalid')).toThrow('Invalid ObjectId string');
+    expect(() => new GadzObjectId('507f1f77bcf86cd79943901')).toThrow('Invalid ObjectId string'); // Too short
+    expect(() => new GadzObjectId('507f1f77bcf86cd7994390112')).toThrow('Invalid ObjectId string'); // Too long
   });
 
   test('should throw on invalid hex characters', () => {
-    expect(() => new BongoObjectId('507f1f77bcf86cd79943901g')).toThrow('Invalid ObjectId string');
-    expect(() => new BongoObjectId('507f1f77bcf86cd79943901Z')).toThrow('Invalid ObjectId string');
+    expect(() => new GadzObjectId('507f1f77bcf86cd79943901g')).toThrow('Invalid ObjectId string');
+    expect(() => new GadzObjectId('507f1f77bcf86cd79943901Z')).toThrow('Invalid ObjectId string');
   });
 
   test('should throw on invalid Buffer length', () => {
     const shortBuffer = Buffer.from('507f1f77bcf86cd799439', 'hex');
     const longBuffer = Buffer.from('507f1f77bcf86cd7994390112233', 'hex');
     
-    expect(() => new BongoObjectId(shortBuffer)).toThrow('Invalid ObjectId buffer');
-    expect(() => new BongoObjectId(longBuffer)).toThrow('Invalid ObjectId buffer');
+    expect(() => new GadzObjectId(shortBuffer)).toThrow('Invalid ObjectId buffer');
+    expect(() => new GadzObjectId(longBuffer)).toThrow('Invalid ObjectId buffer');
   });
 
   test('should compare ObjectIds correctly', () => {
-    const id1 = new BongoObjectId();
-    const id2 = new BongoObjectId(id1);
-    const id3 = new BongoObjectId();
+    const id1 = new GadzObjectId();
+    const id2 = new GadzObjectId(id1);
+    const id3 = new GadzObjectId();
     
     expect(id1.equals(id2)).toBe(true);
     expect(id1.equals(id3)).toBe(false);
@@ -69,7 +69,7 @@ describe('BongoObjectId', () => {
 
   test('should extract timestamp correctly', () => {
     const beforeTime = new Date();
-    const id = new BongoObjectId();
+    const id = new GadzObjectId();
     const afterTime = new Date();
     
     const timestamp = id.getTimestamp();
@@ -78,27 +78,27 @@ describe('BongoObjectId', () => {
   });
 
   test('should validate ObjectId strings', () => {
-    expect(BongoObjectId.isValid('507f1f77bcf86cd799439011')).toBe(true);
-    expect(BongoObjectId.isValid('invalid')).toBe(false);
-    expect(BongoObjectId.isValid('')).toBe(false);
-    expect(BongoObjectId.isValid('507f1f77bcf86cd79943901g')).toBe(false);
+    expect(GadzObjectId.isValid('507f1f77bcf86cd799439011')).toBe(true);
+    expect(GadzObjectId.isValid('invalid')).toBe(false);
+    expect(GadzObjectId.isValid('')).toBe(false);
+    expect(GadzObjectId.isValid('507f1f77bcf86cd79943901g')).toBe(false);
   });
 
   test('should validate ObjectId buffers', () => {
     const validBuffer = Buffer.from('507f1f77bcf86cd799439011', 'hex');
     const invalidBuffer = Buffer.from('507f1f77bcf86cd799439', 'hex');
     
-    expect(BongoObjectId.isValid(validBuffer)).toBe(true);
-    expect(BongoObjectId.isValid(invalidBuffer)).toBe(false);
+    expect(GadzObjectId.isValid(validBuffer)).toBe(true);
+    expect(GadzObjectId.isValid(invalidBuffer)).toBe(false);
   });
 
   test('should validate ObjectId instances', () => {
-    const id = new BongoObjectId();
-    expect(BongoObjectId.isValid(id)).toBe(true);
+    const id = new GadzObjectId();
+    expect(GadzObjectId.isValid(id)).toBe(true);
   });
 
   test('should generate sequential ObjectIds', () => {
-    const ids = Array.from({ length: 10 }, () => new BongoObjectId());
+    const ids = Array.from({ length: 10 }, () => new GadzObjectId());
     
     // All should have same timestamp (within same second)
     const timestamps = ids.map(id => id.getTimestamp().getTime());
@@ -113,21 +113,21 @@ describe('BongoObjectId', () => {
 
   test('should handle edge cases in construction', () => {
     // Undefined should create new ObjectId
-    const id1 = new BongoObjectId(undefined);
+    const id1 = new GadzObjectId(undefined);
     expect(id1.toString()).toHaveLength(24);
     
     // Empty string should throw
-    expect(() => new BongoObjectId('')).toThrow();
+    expect(() => new GadzObjectId('')).toThrow();
     
     // Non-string, non-buffer, non-ObjectId should throw
-    expect(() => new BongoObjectId(123 as any)).toThrow('Invalid ObjectId input');
-    expect(() => new BongoObjectId({} as any)).toThrow('Invalid ObjectId input');
-    expect(() => new BongoObjectId(null as any)).toThrow('Invalid ObjectId input');
+    expect(() => new GadzObjectId(123 as any)).toThrow('Invalid ObjectId input');
+    expect(() => new GadzObjectId({} as any)).toThrow('Invalid ObjectId input');
+    expect(() => new GadzObjectId(null as any)).toThrow('Invalid ObjectId input');
   });
 
   test('should maintain counter correctly', () => {
     // Generate many ObjectIds quickly to test counter
-    const ids = Array.from({ length: 1000 }, () => new BongoObjectId());
+    const ids = Array.from({ length: 1000 }, () => new GadzObjectId());
     const hexStrings = ids.map(id => id.toString());
     const uniqueHexStrings = [...new Set(hexStrings)];
     
@@ -136,7 +136,7 @@ describe('BongoObjectId', () => {
   });
 
   test('should handle toString and toHexString identically', () => {
-    const id = new BongoObjectId();
+    const id = new GadzObjectId();
     expect(id.toString()).toBe(id.toHexString());
   });
 });

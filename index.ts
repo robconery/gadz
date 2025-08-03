@@ -1,8 +1,8 @@
 // Gadz - MongoDB-compatible API with SQLite backend
 export { Client } from './src/client.js';
-export { BongoDatabase } from './src/database.js';
+export { GadzDatabase } from './src/database.js';
 export { Collection } from './src/collection.js';
-export { BongoObjectId } from './src/objectid.js';
+export { GadzObjectId } from './src/objectid.js';
 export { QueryBuilder } from './src/query-builder.js';
 
 export type {
@@ -26,18 +26,18 @@ export type {
 // Simple DB methods that derive collection names from types
 import pluralize from 'pluralize';
 import { Client } from './src/client.js';
-import { BongoDatabase } from './src/database.js';
+import { GadzDatabase } from './src/database.js';
 import { Collection } from './src/collection.js';
 import type { Document, InsertOneResult, InsertManyResult, QueryFilter, FindOptions } from './src/types.js';
 
 let defaultClient: Client | null = null;
-let defaultDatabase: BongoDatabase | null = null;
+let defaultDatabase: GadzDatabase | null = null;
 
 function getCollectionName<T>(constructor: new (...args: any[]) => T): string {
   return pluralize(constructor.name.toLowerCase());
 }
 
-function getDefaultDatabase(): BongoDatabase {
+function getDefaultDatabase(): GadzDatabase {
   if (!defaultDatabase) {
     if (!defaultClient) {
       defaultClient = new Client();

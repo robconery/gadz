@@ -1,13 +1,13 @@
 // MongoDB-compatible ObjectId implementation
 import { randomBytes } from 'crypto';
 
-export class BongoObjectId {
+export class GadzObjectId {
   private _id: Buffer;
   private static _counter = Math.floor(Math.random() * 0xFFFFFF);
   private static _machineId = randomBytes(3);
   private static _processId = process.pid & 0xFFFF;
 
-  constructor(id?: string | Buffer | BongoObjectId) {
+  constructor(id?: string | Buffer | GadzObjectId) {
     if (id === undefined) {
       this._id = this._generate();
     } else if (typeof id === 'string') {
@@ -20,7 +20,7 @@ export class BongoObjectId {
         throw new Error('Invalid ObjectId buffer');
       }
       this._id = Buffer.from(id);
-    } else if (id instanceof BongoObjectId) {
+    } else if (id instanceof GadzObjectId) {
       this._id = Buffer.from(id._id);
     } else {
       throw new Error('Invalid ObjectId input');
@@ -34,13 +34,13 @@ export class BongoObjectId {
     buffer.writeUInt32BE(Math.floor(Date.now() / 1000), 0);
     
     // 3-byte machine identifier
-    BongoObjectId._machineId.copy(buffer, 4);
+    GadzObjectId._machineId.copy(buffer, 4);
     
     // 2-byte process identifier
-    buffer.writeUInt16BE(BongoObjectId._processId, 7);
+    buffer.writeUInt16BE(GadzObjectId._processId, 7);
     
     // 3-byte counter
-    const counter = (BongoObjectId._counter = (BongoObjectId._counter + 1) % 0xFFFFFF);
+    const counter = (GadzObjectId._counter = (GadzObjectId._counter + 1) % 0xFFFFFF);
     buffer.writeUIntBE(counter, 9, 3);
     
     return buffer;
@@ -54,7 +54,7 @@ export class BongoObjectId {
     return this.toString();
   }
 
-  equals(other: BongoObjectId | string): boolean {
+  equals(other: GadzObjectId | string): boolean {
     if (typeof other === 'string') {
       return this.toString() === other;
     }
@@ -65,9 +65,9 @@ export class BongoObjectId {
     return new Date(this._id.readUInt32BE(0) * 1000);
   }
 
-  static isValid(id: string | Buffer | BongoObjectId): boolean {
+  static isValid(id: string | Buffer | GadzObjectId): boolean {
     try {
-      new BongoObjectId(id);
+      new GadzObjectId(id);
       return true;
     } catch {
       return false;

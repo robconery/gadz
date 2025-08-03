@@ -1,6 +1,6 @@
 // Basic functionality tests for Client
 import { test, expect, describe } from 'bun:test';
-import { Client, BongoObjectId } from '../index.js';
+import { Client, GadzObjectId } from '../index.js';
 import { rmSync } from 'fs';
 
 describe('Client', () => {

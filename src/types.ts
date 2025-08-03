@@ -1,5 +1,5 @@
 // MongoDB-compatible types and interfaces
-import { BongoObjectId } from './objectid.js';
+import { GadzObjectId } from './objectid.js';
 
 export interface ObjectId {
   toString(): string;
@@ -8,19 +8,19 @@ export interface ObjectId {
 }
 
 export interface Document {
-  _id?: BongoObjectId | string;
+  _id?: GadzObjectId | string;
   [key: string]: any;
 }
 
 export interface InsertOneResult {
   acknowledged: boolean;
-  insertedId: BongoObjectId | string;
+  insertedId: GadzObjectId | string;
 }
 
 export interface InsertManyResult {
   acknowledged: boolean;
   insertedCount: number;
-  insertedIds: (BongoObjectId | string)[];
+  insertedIds: (GadzObjectId | string)[];
 }
 
 export interface UpdateResult {
@@ -28,7 +28,7 @@ export interface UpdateResult {
   matchedCount: number;
   modifiedCount: number;
   upsertedCount: number;
-  upsertedId?: BongoObjectId | string;
+  upsertedId?: GadzObjectId | string;
 }
 
 export interface DeleteResult {

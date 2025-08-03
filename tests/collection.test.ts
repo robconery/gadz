@@ -1,7 +1,7 @@
 // Comprehensive tests for collection operations and edge cases
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test';
 import { Client } from '../src/client.js';
-import { BongoObjectId } from '../src/objectid.js';
+import { GadzObjectId } from '../src/objectid.js';
 import type { Collection } from '../src/collection.js';
 
 describe('Collection', () => {
@@ -25,7 +25,7 @@ describe('Collection', () => {
       
       expect(result.insertedId).toBeDefined();
       expect(result.acknowledged).toBe(true);
-      expect(BongoObjectId.isValid(result.insertedId)).toBe(true);
+      expect(GadzObjectId.isValid(result.insertedId)).toBe(true);
     });
 
     test('should preserve provided _id', async () => {

@@ -2,7 +2,7 @@
 import { Database } from 'bun:sqlite';
 import { Collection } from './collection.js';
 
-export class BongoDatabase {
+export class GadzDatabase {
   private db: Database;
   private name: string;
   private collections: Map<string, Collection> = new Map();

@@ -1,6 +1,6 @@
 // Main client class - implements MongoDB client API for Gadz
 import { Database } from 'bun:sqlite';
-import { BongoDatabase } from './database.js';
+import { GadzDatabase } from './database.js';
 
 export interface ClientOptions {
   filename?: string;
@@ -10,7 +10,7 @@ export interface ClientOptions {
 }
 
 export class Client {
-  private databases: Map<string, BongoDatabase> = new Map();
+  private databases: Map<string, GadzDatabase> = new Map();
   private sqliteConnections: Map<string, Database> = new Map();
   private options: ClientOptions;
 
@@ -24,7 +24,7 @@ export class Client {
     };
   }
 
-  db(name: string): BongoDatabase {
+  db(name: string): GadzDatabase {
     if (!this.databases.has(name)) {
       // Create or get SQLite connection for this database
       let sqliteDb: Database;
@@ -35,7 +35,7 @@ export class Client {
         // For file-based databases, use separate files for each database
         const filename = this.options.filename === ':memory:' 
           ? ':memory:' 
-          : `${this.options.filename || 'bongo'}_${name}.db`;
+          : `${this.options.filename || 'Gadz'}_${name}.db`;
         
         sqliteDb = new Database(filename, {
           readonly: this.options.readonly,
@@ -66,7 +66,7 @@ export class Client {
         this.sqliteConnections.set(name, sqliteDb);
       }
 
-      const database = new BongoDatabase(sqliteDb, name);
+      const database = new GadzDatabase(sqliteDb, name);
       this.databases.set(name, database);
     }
 

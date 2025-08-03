@@ -2,7 +2,7 @@
 import { test, expect, describe } from 'bun:test';
 import { Client } from '../index.js';
 
-describe('BongoDatabase', () => {
+describe('GadzDatabase', () => {
   test('should create and manage collections', async () => {
     const client = new Client();
     const db = client.db('test');
