@@ -1,15 +1,15 @@
 // Comprehensive tests for collection operations and edge cases
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test';
-import { BongoClient } from '../src/client.js';
+import { Client } from '../src/client.js';
 import { BongoObjectId } from '../src/objectid.js';
-import type { BongoCollection } from '../src/collection.js';
+import type { Collection } from '../src/collection.js';
 
 describe('Collection', () => {
-  let client: BongoClient;
-  let collection: BongoCollection;
+  let client: Client;
+  let collection: Collection;
 
   beforeEach(async () => {
-    client = new BongoClient({ filename: ':memory:' });
+    client = new Client({ filename: ':memory:' });
     await client.connect();
     collection = client.db('test').collection('users');
   });

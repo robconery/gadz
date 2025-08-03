@@ -1,5 +1,5 @@
 {
-  "name": "bongo",
+  "name": "gadz",
   "module": "index.ts",
   "devDependencies": {
     "@types/bun": "latest",

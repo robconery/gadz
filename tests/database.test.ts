@@ -1,10 +1,10 @@
 // Database functionality tests
 import { test, expect, describe } from 'bun:test';
-import { BongoClient } from '../index.js';
+import { Client } from '../index.js';
 
 describe('BongoDatabase', () => {
   test('should create and manage collections', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     const db = client.db('test');
     
     const collection1 = db.collection('users');
@@ -22,7 +22,7 @@ describe('BongoDatabase', () => {
   });
 
   test('should list collections', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     const db = client.db('test');
     
     // Initially no collections
@@ -41,7 +41,7 @@ describe('BongoDatabase', () => {
   });
 
   test('should drop collections', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     const db = client.db('test');
     
     const collection = db.collection('users');
@@ -57,7 +57,7 @@ describe('BongoDatabase', () => {
   });
 
   test('should provide database stats', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     const db = client.db('test');
     
     const stats = db.stats();
@@ -81,7 +81,7 @@ describe('BongoDatabase', () => {
   });
 
   test('should handle createCollection', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     const db = client.db('test');
     
     const collection = db.createCollection('explicit');
@@ -95,7 +95,7 @@ describe('BongoDatabase', () => {
   });
 
   test('should get database name', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     const db = client.db('myTestDatabase');
     
     expect(db.getName()).toBe('myTestDatabase');

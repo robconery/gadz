@@ -1,20 +1,20 @@
-// Main client class - implements MongoDB client API
+// Main client class - implements MongoDB client API for Gadz
 import { Database } from 'bun:sqlite';
 import { BongoDatabase } from './database.js';
 
-export interface BongoClientOptions {
+export interface ClientOptions {
   filename?: string;
   readonly?: boolean;
   create?: boolean;
   readwrite?: boolean;
 }
 
-export class BongoClient {
+export class Client {
   private databases: Map<string, BongoDatabase> = new Map();
   private sqliteConnections: Map<string, Database> = new Map();
-  private options: BongoClientOptions;
+  private options: ClientOptions;
 
-  constructor(options: BongoClientOptions = {}) {
+  constructor(options: ClientOptions = {}) {
     this.options = {
       filename: ':memory:',
       readonly: false,

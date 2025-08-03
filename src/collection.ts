@@ -1,4 +1,4 @@
-// Collection class - implements MongoDB collection API
+// Collection class - implements MongoDB collection API for Gadz
 import { Database } from 'bun:sqlite';
 import { BongoObjectId } from './objectid.js';
 import { QueryBuilder } from './query-builder.js';
@@ -15,7 +15,7 @@ import type {
   CreateIndexOptions
 } from './types.js';
 
-export class BongoCollection {
+export class Collection {
   private db: Database;
   private name: string;
 

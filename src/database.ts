@@ -1,26 +1,26 @@
-// Main database class - implements MongoDB database API
+// Main database class - implements MongoDB database API for Gadz
 import { Database } from 'bun:sqlite';
-import { BongoCollection } from './collection.js';
+import { Collection } from './collection.js';
 
 export class BongoDatabase {
   private db: Database;
   private name: string;
-  private collections: Map<string, BongoCollection> = new Map();
+  private collections: Map<string, Collection> = new Map();
 
   constructor(db: Database, name: string) {
     this.db = db;
     this.name = name;
   }
 
-  collection(name: string): BongoCollection {
+  collection(name: string): Collection {
     if (!this.collections.has(name)) {
-      const collection = new BongoCollection(this.db, name);
+      const collection = new Collection(this.db, name);
       this.collections.set(name, collection);
     }
     return this.collections.get(name)!;
   }
 
-  createCollection(name: string): BongoCollection {
+  createCollection(name: string): Collection {
     return this.collection(name);
   }
 

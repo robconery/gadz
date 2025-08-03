@@ -1,11 +1,11 @@
-// Basic functionality tests for BongoClient
+// Basic functionality tests for Client
 import { test, expect, describe } from 'bun:test';
-import { BongoClient, BongoObjectId } from '../index.js';
+import { Client, BongoObjectId } from '../index.js';
 import { rmSync } from 'fs';
 
-describe('BongoClient', () => {
+describe('Client', () => {
   test('should create in-memory database by default', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     await client.connect();
     
     const db = client.db('test');
@@ -17,7 +17,7 @@ describe('BongoClient', () => {
 
   test('should create file-based database', async () => {
     const filename = './test-client.db';
-    const client = new BongoClient({ filename });
+    const client = new Client({ filename });
     
     const db = client.db('test');
     const collection = db.collection('users');
@@ -32,7 +32,7 @@ describe('BongoClient', () => {
   });
 
   test('should handle multiple databases', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     
     const db1 = client.db('db1');
     const db2 = client.db('db2');
@@ -45,7 +45,7 @@ describe('BongoClient', () => {
   });
 
   test('should list databases', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     
     const db1 = client.db('db1');
     const db2 = client.db('db2');
@@ -62,7 +62,7 @@ describe('BongoClient', () => {
   });
 
   test('should handle client options', () => {
-    const client = new BongoClient({
+    const client = new Client({
       filename: ':memory:',
       readonly: false,
       create: true,
@@ -73,7 +73,7 @@ describe('BongoClient', () => {
   });
 
   test('should execute raw SQL', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     const db = client.db('test');
     
     // Create a collection first
@@ -89,7 +89,7 @@ describe('BongoClient', () => {
   });
 
   test('should throw error for non-existent database in executeSQL', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     
     expect(() => {
       client.executeSQL('nonexistent', 'SELECT 1');
@@ -99,7 +99,7 @@ describe('BongoClient', () => {
   });
 
   test('should get SQLite connection', async () => {
-    const client = new BongoClient();
+    const client = new Client();
     const db = client.db('test');
     
     const connection = client.getSQLiteConnection('test');
