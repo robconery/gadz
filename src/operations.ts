@@ -374,5 +374,239 @@ export async function findOne<T>(
   return results.length > 0 ? results[0] : null;
 }
 
+/**
+ * Alias for find - searches documents with advanced MongoDB-style queries
+ * Follows late checkout/early checkin pattern
+ */
+export async function where<T>(
+  constructor: new (...args: any[]) => T,
+  filter: Filter = {},
+  options: FindOptions = {}
+): Promise<(T & DocumentWithMeta)[]> {
+  return await find(constructor, filter, options);
+}
+
+/**
+ * Save multiple documents in a transaction (UPSERT operation)
+ * Accepts variadic arguments which are flattened to a single array
+ */
+export async function saveMany<T>(...documents: (T | T[])[]): Promise<(T & DocumentWithMeta)[]> {
+  // Flatten all arguments into a single array
+  const flatDocs = documents.flat() as T[];
+  
+  if (flatDocs.length === 0) {
+    return [];
+  }
+  
+  // Get table name from first document
+  const tableName = getCollectionNameFromInstance(flatDocs[0]);
+  
+  // Ensure table exists
+  await ensureTable(tableName);
+  
+  return await withTransaction(async (pooledDb) => {
+    const results: (T & DocumentWithMeta)[] = [];
+    
+    for (const document of flatDocs) {
+      // Call _validate method if it exists on the document
+      await validateDocument(document);
+      
+      // Remove timestamp fields from document data before storing
+      const { id, created_at, updated_at, ...docWithoutMeta } = document as any;
+      const docData = JSON.stringify(docWithoutMeta);
+      const hasId = (document as any).id;
+      
+      if (hasId) {
+        // Use INSERT ... ON CONFLICT for proper upsert behavior
+        const upsertQuery = pooledDb.db.query(`
+          INSERT INTO ${tableName} (id, data) 
+          VALUES (?, ?)
+          ON CONFLICT(id) DO UPDATE SET 
+            data = excluded.data,
+            updated_at = datetime('now')
+          RETURNING id, data, created_at, updated_at
+        `);
+        
+        const row = upsertQuery.get(hasId, docData) as { 
+          id: number; 
+          data: string; 
+          created_at: string; 
+          updated_at: string; 
+        };
+        
+        const parsedData = JSON.parse(row.data);
+        results.push({
+          ...parsedData,
+          id: row.id,
+          created_at: row.created_at,
+          updated_at: row.updated_at
+        } as T & DocumentWithMeta);
+      } else {
+        // Insert new document using RETURNING to get inserted data
+        const insertQuery = pooledDb.db.query(`
+          INSERT INTO ${tableName} (data) 
+          VALUES (?)
+          RETURNING id, data, created_at, updated_at
+        `);
+        
+        const row = insertQuery.get(docData) as { 
+          id: number; 
+          data: string; 
+          created_at: string; 
+          updated_at: string; 
+        };
+        
+        const parsedData = JSON.parse(row.data);
+        results.push({
+          ...parsedData,
+          id: row.id,
+          created_at: row.created_at,
+          updated_at: row.updated_at
+        } as T & DocumentWithMeta);
+      }
+    }
+    
+    return results;
+  });
+}
+
+/**
+ * Update multiple documents matching a filter
+ * Requires $set operator and supports upsert option
+ */
+export async function updateMany<T>(
+  constructor: new (...args: any[]) => T,
+  filter: Filter,
+  update: UpdateFilter,
+  options: { upsert?: boolean } = {}
+): Promise<{ matchedCount: number; modifiedCount: number; upsertedId?: number }> {
+  if (!update.$set) {
+    throw new Error("updateMany requires $set operator");
+  }
+  
+  const tableName = getCollectionName(constructor);
+  await ensureTable(tableName);
+  
+  return await withTransaction(async (pooledDb) => {
+    const { clause: whereClause, params: whereParams } = buildWhereClause(filter);
+    
+    // Update existing documents
+    const selectQuery = pooledDb.db.query(`
+      SELECT id, data FROM ${tableName} ${whereClause || 'WHERE 1=1'}
+    `);
+    const existingDocs = selectQuery.all(...(whereParams || [])) as { id: number; data: string }[];
+    
+    if (existingDocs.length > 0) {
+      let modifiedCount = 0;
+      
+      for (const doc of existingDocs) {
+        const parsedData = JSON.parse(doc.data);
+        const updatedData = { ...parsedData, ...update.$set };
+        
+        const updateQuery = pooledDb.db.query(`
+          UPDATE ${tableName} 
+          SET data = ?, updated_at = datetime('now') 
+          WHERE id = ?
+        `);
+        updateQuery.run(JSON.stringify(updatedData), doc.id);
+        modifiedCount++;
+      }
+      
+      return {
+        matchedCount: existingDocs.length,
+        modifiedCount: modifiedCount
+      };
+    } else if (options.upsert) {
+      // No documents matched and upsert is true, create new document
+      const newDoc = update.$set;
+      const insertQuery = pooledDb.db.query(`
+        INSERT INTO ${tableName} (data) 
+        VALUES (?)
+        RETURNING id
+      `);
+      const result = insertQuery.get(JSON.stringify(newDoc)) as { id: number };
+      
+      return {
+        matchedCount: 0,
+        modifiedCount: 0,
+        upsertedId: result.id
+      };
+    } else {
+      return {
+        matchedCount: 0,
+        modifiedCount: 0
+      };
+    }
+  });
+}
+
+/**
+ * Delete multiple documents matching a filter
+ * Transactional operation
+ */
+export async function deleteMany<T>(
+  constructor: new (...args: any[]) => T,
+  filter: Filter
+): Promise<{ deletedCount: number }> {
+  const tableName = getCollectionName(constructor);
+  await ensureTable(tableName);
+  
+  return await withTransaction(async (pooledDb) => {
+    const { clause: whereClause, params } = buildWhereClause(filter);
+    
+    if (!whereClause) {
+      throw new Error("deleteMany requires a filter to prevent accidental deletion of all documents");
+    }
+    
+    const deleteQuery = pooledDb.db.query(`
+      DELETE FROM ${tableName} ${whereClause}
+    `);
+    const result = deleteQuery.run(...params);
+    
+    return {
+      deletedCount: result.changes
+    };
+  });
+}
+
+/**
+ * Delete a single document matching a filter
+ */
+export async function deleteOne<T>(
+  constructor: new (...args: any[]) => T,
+  filter: Filter
+): Promise<{ deletedCount: number }> {
+  const tableName = getCollectionName(constructor);
+  await ensureTable(tableName);
+  
+  return await withConnection(async (pooledDb) => {
+    const { clause: whereClause, params } = buildWhereClause(filter);
+    
+    if (!whereClause) {
+      throw new Error("deleteOne requires a filter");
+    }
+    
+    const deleteQuery = pooledDb.db.query(`
+      DELETE FROM ${tableName} ${whereClause} LIMIT 1
+    `);
+    const result = deleteQuery.run(...params);
+    
+    return {
+      deletedCount: result.changes
+    };
+  });
+}
+
+/**
+ * Execute raw SQL with optional typing
+ */
+export async function raw<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+  return await withConnection(async (pooledDb) => {
+    const query = pooledDb.db.query(sql);
+    const results = query.all(...params);
+    return results as T[];
+  });
+}
+
 // Export types
 export type { Filter, UpdateFilter, SaveOptions, FindOptions, DocumentWithMeta };

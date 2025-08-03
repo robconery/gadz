@@ -16,8 +16,6 @@ Any time you create a markdown document, add emojis for readability and a bit of
 
 I'm trying to put a type-safe abstraction over SQLite to turn it into a viable document database. Here is a sample API:
 
-Check constraints will create actual columns that are synchronized with the JSON `data` column. For instance: a unique constraint for `email` will create an `email` column on `users` with a unique constraint. This column will be updated via trigger for all insert and update.
-
 ```ts
 import {
   get, 
@@ -30,10 +28,7 @@ import {
   deleteMany, 
   updateMany,
   isUnique, 
-  raw,
-  createIndex,
-  checkConstraint,
-  unique
+  raw
 } from "gadz"
 
 class User {
@@ -49,32 +44,9 @@ class User {
 
   async _validate(){
     await isUnique(this, "email"); //will throw if not
-    //more checks here
+    return () => this.age > 0 && this.age < 120;
   }
 }
-
-//creates a separate column for name and adds an index to it
-await createIndex("name);
-
-//creates separate columns for name and email and creates a single combined index
-//these columns are synchronized with the JSON data
-await createIndex("name, email");
-
-//throws! Can only put unique on single email
-await createIndex("name, email", {unique: true})
-
-//creates a column with a unique constraint in SQLite that is synchronized with the JSON data
-await createIndex("email", {unique: true});
-
-//this is aliased to
-await unique("email")
-
-//creates an age column that is synchronized with the JSON data
-//and adds a check constraint
-await checkConstraint("age", "age > 0");
-//adds another check constratint, but doesn't create the column
-//because it already exists
-await checkConstraint("age", "age < 150")
 
 //operations use generics, which use the pluralize package to figure out
 //the collection name, which is the plural of the class name

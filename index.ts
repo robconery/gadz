@@ -23,20 +23,18 @@ export {
   get, 
   find, 
   findOne,
+  where,
   save,
+  saveMany,
+  updateMany,
+  deleteMany,
+  deleteOne,
+  raw,
   type Filter,
   type SaveOptions,
   type FindOptions,
   type DocumentWithMeta
 } from "./src/operations";
-
-// TODO: Additional operations (to be implemented)
-// export { 
-//   where, 
-//   saveMany, 
-//   updateMany, 
-//   deleteMany 
-// } from "./src/operations";
 
 // Validation functions
 export { 
