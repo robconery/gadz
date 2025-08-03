@@ -57,6 +57,12 @@ export function setDefaultClient(client: Client, databaseName = 'default'): void
   defaultDatabase = client.db(databaseName);
 }
 
+// Reset function for testing
+export function resetDefaultClient(): void {
+  defaultClient = null;
+  defaultDatabase = null;
+}
+
 export async function save<T extends Document>(document: T): Promise<InsertOneResult> {
   if (!document.constructor || document.constructor === Object) {
     throw new Error('Document must have a constructor to derive collection name');
@@ -74,7 +80,38 @@ export async function save<T extends Document>(document: T): Promise<InsertOneRe
   }
   
   const collection = getCollection(document.constructor as new (...args: any[]) => T);
-  return collection.insertOne(document);
+  
+  // Use upsert logic with ON CONFLICT
+  const doc = { ...document };
+  
+  // Generate ID if not present
+  if (!doc._id) {
+    const { GadzObjectId } = await import('./src/objectid.js');
+    doc._id = new GadzObjectId();
+  }
+
+  const id = doc._id!.toString();
+  const { _id, ...data } = doc;
+  
+  // Get direct database access
+  const db = (collection as any).db;
+  const tableName = (collection as any).name;
+  
+  // Use INSERT ... ON CONFLICT DO UPDATE for upsert
+  const stmt = db.prepare(`
+    INSERT INTO "${tableName}" (_id, data, created_at, updated_at) 
+    VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT(_id) DO UPDATE SET 
+      data = excluded.data,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+  
+  stmt.run(id, JSON.stringify(data));
+  
+  return {
+    acknowledged: true,
+    insertedId: doc._id!
+  };
 }
 
 export async function saveMany<T extends Document>(documents: T[]): Promise<InsertManyResult> {
@@ -104,7 +141,54 @@ export async function saveMany<T extends Document>(documents: T[]): Promise<Inse
   }
 
   const collection = getCollection(firstDoc.constructor as new (...args: any[]) => T);
-  return collection.insertMany(documents);
+  
+  // Get direct database access for custom transaction with upsert
+  const db = (collection as any).db;
+  const tableName = (collection as any).name;
+  const insertedIds: any[] = [];
+  
+  // Prepare upsert statement
+  const stmt = db.prepare(`
+    INSERT INTO "${tableName}" (_id, data, created_at, updated_at) 
+    VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT(_id) DO UPDATE SET 
+      data = excluded.data,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+  
+  // Start transaction
+  db.run('BEGIN TRANSACTION');
+  try {
+    for (const document of documents) {
+      const doc = { ...document };
+      
+      // Generate ID if not present
+      if (!doc._id) {
+        const { GadzObjectId } = await import('./src/objectid.js');
+        doc._id = new GadzObjectId();
+      }
+
+      const id = doc._id!.toString();
+      const { _id, ...data } = doc;
+
+      // Execute upsert
+      stmt.run(id, JSON.stringify(data));
+      insertedIds.push(doc._id!);
+    }
+    
+    // Commit transaction
+    db.run('COMMIT');
+    
+    return {
+      acknowledged: true,
+      insertedCount: documents.length,
+      insertedIds
+    };
+  } catch (error) {
+    // Rollback on any error
+    db.run('ROLLBACK');
+    throw error;
+  }
 }
 
 export function get<T>(type: new (...args: any[]) => T, id: string | number): T | null {

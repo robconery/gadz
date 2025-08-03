@@ -1,6 +1,6 @@
 // Tests for DB methods that derive collection names from types
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test';
-import { save, saveMany, get, find, findOne, where, setDefaultClient, isUnique, Client } from '../index.js';
+import { save, saveMany, get, find, findOne, where, setDefaultClient, isUnique, resetDefaultClient, Client } from '../index.js';
 
 // Test model classes
 class User {
@@ -77,12 +77,14 @@ describe('DB Methods', () => {
   beforeEach(async () => {
     // Use in-memory database for tests
     client = new Client();
-    setDefaultClient(client);
     await client.connect();
+    setDefaultClient(client);
   });
   
   afterEach(async () => {
     await client.close();
+    // Reset the default client to avoid closed database references
+    resetDefaultClient();
   });
 
   describe('save', () => {
@@ -308,7 +310,7 @@ describe('DB Methods', () => {
       setDefaultClient(customClient, 'custom');
       
       const user = new User({ email: 'test@example.com', active: true });
-      save(user);
+      await save(user);
       
       // Verify it was saved to the custom database
       const customDb = customClient.db('custom');
@@ -384,6 +386,160 @@ describe('DB Methods', () => {
       expect(foundUser!.email).toBe('test@example.com');
       expect(foundUsers[0].name).toBe('Test');
       expect(oneUser!.active).toBe(true);
+    });
+  });
+
+  describe('Upsert behavior', () => {
+    describe('save method upserts', () => {
+      test('should insert new document when it does not exist', async () => {
+        const user = new User({ email: 'new@example.com', name: 'New User', active: true });
+        
+        const result = await save(user);
+        
+        expect(result.acknowledged).toBe(true);
+        expect(result.insertedId).toBeDefined();
+        
+        // Verify document was inserted
+        const foundUser = findOne(User, { email: 'new@example.com' });
+        expect(foundUser).not.toBeNull();
+        expect(foundUser!.name).toBe('New User');
+        expect(foundUser!.active).toBe(true);
+      });
+
+      test('should update existing document when ID already exists', async () => {
+        // First, save a user
+        const user = new User({ email: 'update@example.com', name: 'Original Name', active: true });
+        const initialResult = await save(user);
+        
+        // Verify initial save
+        const initialUser = findOne(User, { email: 'update@example.com' });
+        expect(initialUser!.name).toBe('Original Name');
+        expect(initialUser!.active).toBe(true);
+        
+        // Now update the same user (same _id)
+        const updatedUser = new User({ email: 'update@example.com', name: 'Updated Name', active: false });
+        updatedUser._id = initialResult.insertedId; // Same ID
+        
+        const updateResult = await save(updatedUser);
+        
+        expect(updateResult.acknowledged).toBe(true);
+        expect(updateResult.insertedId.toString()).toBe(initialResult.insertedId.toString());
+        
+        // Verify document was updated, not duplicated
+        const foundUsers = find(User, { email: 'update@example.com' });
+        expect(foundUsers).toHaveLength(1);
+        
+        const foundUser = foundUsers[0];
+        expect(foundUser.name).toBe('Updated Name');
+        expect(foundUser.active).toBe(false);
+      });
+    });
+
+    describe('saveMany method upserts', () => {
+      test('should insert multiple new documents', async () => {
+        const users = [
+          new User({ email: 'batch1@example.com', name: 'Batch User 1', active: true }),
+          new User({ email: 'batch2@example.com', name: 'Batch User 2', active: false })
+        ];
+        
+        const result = await saveMany(users);
+        
+        expect(result.acknowledged).toBe(true);
+        expect(result.insertedCount).toBe(2);
+        expect(result.insertedIds).toHaveLength(2);
+        
+        // Verify both documents were inserted
+        const foundUser1 = findOne(User, { email: 'batch1@example.com' });
+        const foundUser2 = findOne(User, { email: 'batch2@example.com' });
+        
+        expect(foundUser1).not.toBeNull();
+        expect(foundUser1!.name).toBe('Batch User 1');
+        expect(foundUser1!.active).toBe(true);
+        
+        expect(foundUser2).not.toBeNull();
+        expect(foundUser2!.name).toBe('Batch User 2');
+        expect(foundUser2!.active).toBe(false);
+      });
+
+      test('should update existing document and insert new ones in same batch', async () => {
+        // First, save an existing user
+        const existingUser = new User({ email: 'existing@example.com', name: 'Existing', active: true });
+        const existingResult = await save(existingUser);
+        
+        // Create batch with mix of new and existing
+        const batchUsers = [
+          new User({ email: 'new1@example.com', name: 'New User 1', active: true }),
+          new User({ email: 'existing@example.com', name: 'Updated Existing', active: false }), // Update existing
+          new User({ email: 'new2@example.com', name: 'New User 2', active: true })
+        ];
+        
+        // Set the ID for the existing user to trigger update
+        batchUsers[1]._id = existingResult.insertedId;
+        
+        const result = await saveMany(batchUsers);
+        
+        expect(result.acknowledged).toBe(true);
+        expect(result.insertedCount).toBe(3);
+        expect(result.insertedIds).toHaveLength(3);
+        
+        // Verify new documents were inserted
+        const newUser1 = findOne(User, { email: 'new1@example.com' });
+        const newUser2 = findOne(User, { email: 'new2@example.com' });
+        
+        expect(newUser1).not.toBeNull();
+        expect(newUser1!.name).toBe('New User 1');
+        
+        expect(newUser2).not.toBeNull();
+        expect(newUser2!.name).toBe('New User 2');
+        
+        // Verify existing document was updated, not duplicated
+        const existingUsers = find(User, { email: 'existing@example.com' });
+        expect(existingUsers).toHaveLength(1);
+        
+        const updatedExisting = existingUsers[0];
+        expect(updatedExisting.name).toBe('Updated Existing');
+        expect(updatedExisting.active).toBe(false);
+        expect(updatedExisting._id!.toString()).toBe(existingResult.insertedId.toString());
+      });
+
+      test('should handle batch with all updates to existing documents', async () => {
+        // First, save two users
+        const user1 = new User({ email: 'batch-update1@example.com', name: 'Original 1', active: true });
+        const user2 = new User({ email: 'batch-update2@example.com', name: 'Original 2', active: true });
+        
+        const result1 = await save(user1);
+        const result2 = await save(user2);
+        
+        // Create batch to update both existing users
+        const updateBatch = [
+          new User({ email: 'batch-update1@example.com', name: 'Updated 1', active: false }),
+          new User({ email: 'batch-update2@example.com', name: 'Updated 2', active: false })
+        ];
+        
+        // Set IDs to trigger updates
+        updateBatch[0]._id = result1.insertedId;
+        updateBatch[1]._id = result2.insertedId;
+        
+        const updateResult = await saveMany(updateBatch);
+        
+        expect(updateResult.acknowledged).toBe(true);
+        expect(updateResult.insertedCount).toBe(2);
+        
+        // Verify no duplicates were created
+        const allUsers = find(User, {});
+        const email1Users = find(User, { email: 'batch-update1@example.com' });
+        const email2Users = find(User, { email: 'batch-update2@example.com' });
+        
+        expect(email1Users).toHaveLength(1);
+        expect(email2Users).toHaveLength(1);
+        
+        // Verify updates
+        expect(email1Users[0].name).toBe('Updated 1');
+        expect(email1Users[0].active).toBe(false);
+        
+        expect(email2Users[0].name).toBe('Updated 2');
+        expect(email2Users[0].active).toBe(false);
+      });
     });
   });
 

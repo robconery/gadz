@@ -1,6 +1,45 @@
 {
   "name": "gadz",
+  "version": "0.1.0",
+  "description": "A MongoDB-compatible API with SQLite backend for TypeScript applications",
+  "keywords": [
+    "mongodb",
+    "sqlite",
+    "database",
+    "typescript",
+    "orm",
+    "document-database",
+    "bun"
+  ],
+  "homepage": "https://github.com/your-username/gadz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/gadz.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/gadz/issues"
+  },
+  "license": "MIT",
+  "author": "Gadz Contributors",
+  "main": "index.ts",
   "module": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "import": "./index.ts"
+    }
+  },
+  "files": [
+    "index.ts",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/pluralize": "^0.0.33"
@@ -12,7 +51,8 @@
     "dev": "bun run --watch example.ts",
     "example": "bun run example.ts",
     "test": "bun test",
-    "build": "bun build index.ts --outdir ./dist"
+    "build": "bun build index.ts --outdir ./dist",
+    "prepublishOnly": "bun test && bun run build"
   },
   "type": "module",
   "dependencies": {
