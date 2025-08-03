@@ -13,6 +13,11 @@ export {
   type ConnectionConfig 
 } from "./src/connection";
 
+// Table utilities
+export { 
+  ensureTable 
+} from "./src/table-utils";
+
 // Core operations
 export { 
   get, 
@@ -33,11 +38,14 @@ export {
 //   deleteMany 
 // } from "./src/operations";
 
-// TODO: Validation and indexing (to be implemented)
+// Validation functions
+export { 
+  isUnique 
+} from "./src/validation";
+
+// TODO: Indexing and other validation (to be implemented)
 // export { 
-//   isUnique, 
 //   createIndex, 
 //   unique, 
-//   checkConstraint,
 //   raw
 // } from "./src/validation";

@@ -1,4 +1,6 @@
 import { withConnection, withTransaction } from "./connection";
+import { validateDocument } from "./validation";
+import { ensureTable } from "./table-utils";
 import pluralize from "pluralize";
 
 // Type definitions for MongoDB-style operations
@@ -39,31 +41,6 @@ function getCollectionName<T>(constructor: new (...args: any[]) => T): string {
 // Helper function to get collection name from instance
 function getCollectionNameFromInstance(instance: any): string {
   return pluralize(instance.constructor.name.toLowerCase());
-}
-
-// Helper function to ensure table exists
-async function ensureTable(tableName: string): Promise<void> {
-  await withConnection(async (pooledDb) => {
-    // Create table if it doesn't exist with id and data columns
-    pooledDb.db.exec(`
-      CREATE TABLE IF NOT EXISTS ${tableName} (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        data TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    // Create trigger to update updated_at
-    pooledDb.db.exec(`
-      CREATE TRIGGER IF NOT EXISTS update_${tableName}_updated_at
-      AFTER UPDATE ON ${tableName}
-      FOR EACH ROW
-      BEGIN
-        UPDATE ${tableName} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-      END
-    `);
-  });
 }
 
 // Helper function to build WHERE clause from MongoDB-style filter
@@ -235,6 +212,9 @@ export async function save<T>(document: T, options: SaveOptions = { upsert: true
   
   // Ensure table exists
   await ensureTable(tableName);
+  
+  // Call _validate method if it exists on the document
+  await validateDocument(document);
   
   return await withTransaction(async (pooledDb) => {
     // Remove timestamp fields from document data before storing

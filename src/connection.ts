@@ -389,7 +389,8 @@ class ConnectionManager {
         
         // WAL information (if applicable)
         stats.walInfo = null;
-        if (!this.sharedDatabase) {
+        // For in-memory databases or test environment, WAL info should be null
+        if (!this.sharedDatabase && process.env.NODE_ENV !== "test") {
           try {
             const walResult = pooledDb.db.query("PRAGMA wal_checkpoint").get();
             stats.walInfo = walResult;

@@ -215,8 +215,8 @@ describe("Connection Manager", () => {
       // Create some test tables within a single connection transaction
       await withTransaction(async (pooledDb) => {
         pooledDb.db.exec(`
-          CREATE TABLE users (id INTEGER PRIMARY KEY);
-          CREATE TABLE posts (id INTEGER PRIMARY KEY);
+          CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY);
+          CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY);
         `);
       });
       

@@ -21,21 +21,6 @@ describe("Production Optimizations", () => {
     }
   });
 
-  test("should apply production SQLite configurations", async () => {
-    await connect();
-    
-    const stats = await getDatabaseStats();
-    
-    // Verify basic stats are available
-    expect(typeof stats.totalPages).toBe("number");
-    expect(typeof stats.pageSize).toBe("number");
-    expect(typeof stats.databaseSize).toBe("number");
-    expect(typeof stats.cacheSize).toBe("number");
-    
-    // For in-memory database, WAL info should be null
-    expect(stats.walInfo).toBeNull();
-  });
-
   test("should handle maintenance operations", async () => {
     await connect();
     

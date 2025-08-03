@@ -16,6 +16,8 @@ Any time you create a markdown document, add emojis for readability and a bit of
 
 I'm trying to put a type-safe abstraction over SQLite to turn it into a viable document database. Here is a sample API:
 
+Check constraints will create actual columns that are synchronized with the JSON `data` column. For instance: a unique constraint for `email` will create an `email` column on `users` with a unique constraint. This column will be updated via trigger for all insert and update.
+
 ```ts
 import {
   get, 
