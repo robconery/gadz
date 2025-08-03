@@ -13,13 +13,21 @@ export {
   type ConnectionConfig 
 } from "./src/connection";
 
-// TODO: Core operations (to be implemented)
+// Core operations
+export { 
+  get, 
+  find, 
+  findOne,
+  save,
+  type Filter,
+  type SaveOptions,
+  type FindOptions,
+  type DocumentWithMeta
+} from "./src/operations";
+
+// TODO: Additional operations (to be implemented)
 // export { 
-//   get, 
-//   find, 
-//   findOne, 
 //   where, 
-//   save, 
 //   saveMany, 
 //   updateMany, 
 //   deleteMany 
