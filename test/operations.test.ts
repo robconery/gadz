@@ -323,6 +323,7 @@ describe("MongoDB API Operations", () => {
       expect(saved.id).toBeGreaterThan(0);
       
       // Retrieve
+      //const retrieved = await get(User, saved.id);
       const retrieved = await get(User, saved.id);
       expect(retrieved!.email).toBe(originalUser.email);
       expect(retrieved!.profile?.bio).toBe("Test bio");
