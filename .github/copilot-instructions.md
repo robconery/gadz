@@ -2,7 +2,9 @@
 
  - The SQLite database will live in `db/dev.db`
  - NEVER edit `package.json` to add modules, ALWAYS run `npm i` or `bun add`
- - Try to adhere to the MongoDB API as much as possible, but types are more important
+ - Try to adhere to the MongoDB API as much as possible, but types are more important.
+ - Divide and separate the functionality as needed, but the API for Gadz should come from one place: `index.ts` in the root.
+ - DO NOT create extra documents, like READMEs, examples, or tests. I'll create those when ready
 
 ## The MongoDB API for SQLite
 
@@ -150,7 +152,13 @@ import {connect} from "gadz"
 //create connection based on ENV 
 let db = null;
 if(process.env.NODE_ENV === "test"){
-  //in memory
-  db = 
+  //set db to in-memory
+}else{
+  //check if there's an ENV for SQLITE_PATH
+  //if not, pop it in db/dev/db
 }
+
+//export a close function for the db var if it's created
+//export the db client
+//export the collections list as a function, which is a list of the tables
 ```
