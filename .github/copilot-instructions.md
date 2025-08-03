@@ -132,6 +132,26 @@ find<User>({
 });
 ```
 
+## Connection Management
+
+This library needs to be usable in multi-process environments, with process managers like PM2. To that end, connections should:
+
+ - Pooled using a pooling library.
+ - Opened late, closed early and returned to the pool.
+
+If we're saving a document, the flow should be something like this:
+
+```ts
+export function save = (doc) {
+  //validations
+  //check out the connection from the pool
+  //run the query
+  //release the connection to the pool
+}
+```
+
+The connection manager should also manage connections with open transactions, using methods like `beginTransaction`, `commitTransaction`, and `rollbackTransaction`.
+
 ## Raw SQL
 
 Pretty simple I suppose:
