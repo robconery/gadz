@@ -8,22 +8,13 @@ import {
   isConnected 
 } from "../src/connection";
 
-describe("Production Optimizations", () => {
-  beforeEach(async () => {
-    if (isConnected()) {
-      await close();
-    }
-  });
+// Set test environment
+process.env.NODE_ENV = "test";
 
-  afterEach(async () => {
-    if (isConnected()) {
-      await close();
-    }
-  });
+describe("Production Optimizations", () => {
 
   test("should handle maintenance operations", async () => {
-    await connect();
-    
+
     // Should not throw
     await maintenance();
     

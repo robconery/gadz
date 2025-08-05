@@ -92,8 +92,8 @@ class ConnectionManager {
     // Determine database path based on environment
     let dbPath: string;
     if (process.env.NODE_ENV === "test") {
-      // Use a test database file instead of in-memory for proper isolation
-      dbPath = process.env.SQLITE_TEST_PATH || config.path || path.join(process.cwd(), "db", "test.db");
+      // Use unique in-memory database for each test run to ensure isolation
+      dbPath = `:memory:`;
     } else {
       dbPath = process.env.SQLITE_PATH || config.path || path.join(process.cwd(), "db", "dev.db");
     }
@@ -203,13 +203,14 @@ class ConnectionManager {
   }
 
   /**
-   * Get a database connection from the pool
+   * Get a database connection from the pool (with auto-initialization)
    */
   async acquire(): Promise<PooledDatabase> {
+    // Auto-initialize if not connected
     if (!this.pool) {
-      throw new Error("Not connected. Call connect() first.");
+      await this.connect();
     }
-    return await this.pool.acquire();
+    return await this.pool!.acquire();
   }
 
   /**
@@ -438,6 +439,15 @@ export const getPoolStatus = () => connectionManager.getPoolStatus();
 export const isConnected = () => connectionManager.isConnected();
 export const maintenance = () => connectionManager.maintenance();
 export const getDatabaseStats = () => connectionManager.getDatabaseStats();
+
+// Test utility to reset connection - only for tests
+export const resetConnection = async () => {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("resetConnection is only available in test environment");
+  }
+  await connectionManager.close();
+  // Connection will be auto-recreated on next operation
+};
 
 // Export types
 export type { PooledDatabase, ConnectionConfig };

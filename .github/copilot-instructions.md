@@ -142,23 +142,31 @@ const users = await raw<User>("select * from users"); //typed return
 const emails = await raw<any>("select email from users"); //returns array
 ```
 
-## Connection Management
+## The Collection class
 
-The connection should be a singleton that is handled in a single location:
+This will be a class that formalizes the MongoAPI into an inheritance scheme, kind of like ActiveRecord.
+
+Here's the idea:
 
 ```ts
-import {connect} from "gadz"
+class Order extends Collection<Order>{
+  //all finder methods, including get,find,findOne, and where
+  //are now available
+  //saveMany, updateMany, deleteMany
+  
 
-//create connection based on ENV 
-let db = null;
-if(process.env.NODE_ENV === "test"){
-  //set db to in-memory
-}else{
-  //check if there's an ENV for SQLITE_PATH
-  //if not, pop it in db/dev/db
+  //instance methods include save and delete
 }
 
-//export a close function for the db var if it's created
-//export the db client
-//export the collections list as a function, which is a list of the tables
+let orders = await Order.find({total > 100})
+let order = await Order.findOne({total > 100})
+orders = await Order.where({total > 100})
+order = await Order.get(1)
+order.email = "steve@test.com";
+await order.save();
+order2 = await Order.get(2)
+order3 = await Order.get(3)
+await Order.saveMany([order, order2, order3]);
+await Order.deleteMany({status: "pending"});
+await Order.updateMany({status: "complete"}, {status: "closed"})
 ```

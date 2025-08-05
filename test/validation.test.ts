@@ -1,11 +1,8 @@
 import { beforeEach, afterEach, describe, test, expect } from "bun:test";
 import { 
-  connect, 
-  close, 
   save,
   find,
   isUnique,
-  isConnected,
   withConnection
 } from "../index";
 
@@ -56,27 +53,6 @@ class Product {
 }
 
 describe("Validation System", () => {
-  beforeEach(async () => {
-    if (!isConnected()) {
-      await connect();
-    }
-    
-    // Clean up test data
-    await withConnection(async (pooledDb) => {
-      try {
-        pooledDb.db.exec("DELETE FROM users");
-        pooledDb.db.exec("DELETE FROM products");
-      } catch {
-        // Tables might not exist yet, ignore
-      }
-    });
-  });
-
-  afterEach(async () => {
-    if (isConnected()) {
-      await close();
-    }
-  });
 
   describe("_validate method integration", () => {
     test("should save document with valid _validate method", async () => {

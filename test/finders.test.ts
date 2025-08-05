@@ -1,7 +1,5 @@
 import { beforeEach, afterEach, describe, test, expect } from "bun:test";
 import { 
-  connect, 
-  close, 
   save,
   find,
   findOne,
@@ -11,7 +9,6 @@ import {
   deleteMany,
   deleteOne,
   raw,
-  isConnected,
   withConnection
 } from "../index";
 
@@ -45,27 +42,6 @@ class Product {
 }
 
 describe("Extended Operations", () => {
-  beforeEach(async () => {
-    if (!isConnected()) {
-      await connect();
-    }
-    
-    // Clean up test data
-    await withConnection(async (pooledDb) => {
-      try {
-        pooledDb.db.exec("DELETE FROM users");
-        pooledDb.db.exec("DELETE FROM products");
-      } catch {
-        // Tables might not exist yet, ignore
-      }
-    });
-  });
-
-  afterEach(async () => {
-    if (isConnected()) {
-      await close();
-    }
-  });
 
   describe("where (alias for find)", () => {
     test("should work identically to find", async () => {

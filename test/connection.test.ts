@@ -10,20 +10,10 @@ import {
   type PooledDatabase 
 } from "../src/connection";
 
-describe("Connection Manager", () => {
-  beforeEach(async () => {
-    // Ensure clean state
-    if (isConnected()) {
-      await close();
-    }
-  });
+// Set test environment
+process.env.NODE_ENV = "test";
 
-  afterEach(async () => {
-    // Clean up after each test
-    if (isConnected()) {
-      await close();
-    }
-  });
+describe("Connection Manager", () => {
 
   describe("Basic Connection", () => {
     test("should connect with default in-memory database in test environment", async () => {

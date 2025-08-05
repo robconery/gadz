@@ -9,6 +9,7 @@ export {
   isConnected, 
   maintenance,
   getDatabaseStats,
+  resetConnection,
   type PooledDatabase, 
   type ConnectionConfig 
 } from "./src/connection";
@@ -40,6 +41,11 @@ export {
 export { 
   isUnique 
 } from "./src/validation";
+
+// Collection base class
+export { 
+  Collection 
+} from "./src/collection";
 
 // TODO: Indexing and other validation (to be implemented)
 // export { 
