@@ -374,16 +374,104 @@ export async function findOne<T>(
   return results.length > 0 ? results[0] : null;
 }
 
+// Helper function to convert field names to JSON_EXTRACT calls
+function convertFieldsToJsonExtract(whereClause: string): string {
+  // Don't convert if it already contains JSON_EXTRACT or if it's using reserved columns
+  if (whereClause.includes('JSON_EXTRACT') || 
+      whereClause.includes('id ') || 
+      whereClause.includes('created_at') || 
+      whereClause.includes('updated_at') ||
+      whereClause.includes('data ')) {
+    return whereClause;
+  }
+  
+  // Regex to match field names that aren't SQL keywords or functions
+  // This matches words that are followed by operators like =, >, <, etc.
+  // More precise regex that doesn't match words inside string literals
+  const fieldPattern = /\b([a-zA-Z_][a-zA-Z0-9_\.]*)\s*([><=!]+|LIKE|IN|NOT IN|IS|IS NOT)(?=\s)/gi;
+  
+  return whereClause.replace(fieldPattern, (match, fieldName, operator) => {
+    // Skip if it's a SQL keyword or function
+    const sqlKeywords = ['AND', 'OR', 'NOT', 'NULL', 'TRUE', 'FALSE', 'CAST', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END'];
+    if (sqlKeywords.includes(fieldName.toUpperCase())) {
+      return match;
+    }
+    
+    // Handle nested field names (e.g., address.city)
+    const jsonPath = fieldName.includes('.') ? `$.${fieldName}` : `$.${fieldName}`;
+    
+    // For numeric comparisons, cast to REAL
+    if (['>', '<', '>=', '<='].includes(operator.trim())) {
+      return `CAST(JSON_EXTRACT(data, '${jsonPath}') AS REAL) ${operator}`;
+    } else {
+      return `JSON_EXTRACT(data, '${jsonPath}') ${operator}`;
+    }
+  });
+}
+
 /**
- * Alias for find - searches documents with advanced MongoDB-style queries
+ * Execute queries with raw SQL where clauses or MongoDB-style filters
  * Follows late checkout/early checkin pattern
  */
 export async function where<T>(
   constructor: new (...args: any[]) => T,
-  filter: Filter = {},
-  options: FindOptions = {}
+  whereClause: string | Filter,
+  params?: any[] | FindOptions,
+  options?: FindOptions
 ): Promise<(T & DocumentWithMeta)[]> {
-  return await find(constructor, filter, options);
+  // If whereClause is a string, treat it as raw SQL
+  if (typeof whereClause === "string") {
+    const sqlParams = Array.isArray(params) ? params : [];
+    const findOptions = Array.isArray(params) ? (options || {}) : (params || {});
+    
+    const tableName = getCollectionName(constructor);
+    await ensureTable(tableName);
+    
+    return await withConnection(async (connection) => {
+      // Check if the string already starts with WHERE (case-insensitive)
+      let finalWhereClause = whereClause.trim();
+      if (!finalWhereClause.toLowerCase().startsWith('where')) {
+        finalWhereClause = `WHERE ${finalWhereClause}`;
+      }
+      
+      // Convert field names to JSON_EXTRACT calls
+      finalWhereClause = convertFieldsToJsonExtract(finalWhereClause);
+      
+      const orderClause = buildOrderClause(findOptions.sort);
+      let sql = `SELECT id, data, created_at, updated_at FROM ${tableName} ${finalWhereClause} ${orderClause}`;
+      
+      if (findOptions.limit) {
+        sql += ` LIMIT ${findOptions.limit}`;
+      }
+      
+      if (findOptions.skip) {
+        sql += ` OFFSET ${findOptions.skip}`;
+      }
+      
+      const query = connection.db.query(sql);
+      const rows = query.all(...sqlParams) as {
+        id: number;
+        data: string;
+        created_at: string;
+        updated_at: string;
+      }[];
+      
+      return rows.map(row => {
+        const parsedData = JSON.parse(row.data);
+        return {
+          ...parsedData,
+          id: row.id,
+          created_at: row.created_at,
+          updated_at: row.updated_at
+        } as T & DocumentWithMeta;
+      });
+    });
+  }
+  
+  // If whereClause is an object, use the original MongoDB-style filter logic
+  const filter = whereClause as Filter;
+  const findOptions = (Array.isArray(params) ? options : params) || {};
+  return await find(constructor, filter, findOptions);
 }
 
 /**

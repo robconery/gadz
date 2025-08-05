@@ -29,7 +29,7 @@ bun add gadz
 ### Functional API
 
 ```typescript
-import { connect, save, find, get } from "gadz";
+import { connect, save, find, get, where } from "gadz";
 
 // Connect to database
 await connect({ path: "db/app.db" });
@@ -55,6 +55,10 @@ const saved = await save(user);
 // Query documents
 const users = await find<User>({ age: { $gt: 18 } });
 const user = await get<User>(User, 1);
+
+// Raw SQL WHERE clauses
+const adults = await where(User, "age > ?", [18]);
+const activeUsers = await where(User, "active = ? AND age > ?", [true, 21]);
 ```
 
 ### Collection Class API
@@ -84,6 +88,10 @@ const users = await User.find({ age: { $gt: 18 } });
 const user = await User.findOne({ email: "john@example.com" });
 const found = await User.get(1);
 
+// Raw SQL WHERE clauses (also available on Collection classes)
+const adults = await User.where("age > ?", [18]);
+const activeAdults = await User.where("age > ? AND active = ?", [18, true]);
+
 // Instance methods
 const user = new User({ email: "jane@example.com", age: 30 });
 await user.save();
@@ -109,6 +117,116 @@ await User.deleteMany({ age: { $lt: 18 } });
 | `$in` | In array | `{ status: { $in: ["active", "pending"] } }` |
 | `$nin` | Not in array | `{ role: { $nin: ["admin", "super"] } }` |
 | `$exists` | Field exists | `{ phone: { $exists: true } }` |
+
+## 🎯 Raw SQL WHERE Clauses
+
+The `where()` method supports both MongoDB-style filters and raw SQL WHERE clauses with automatic JSON field conversion. This gives you the flexibility to write SQL-like queries while maintaining type safety.
+
+### Basic WHERE Clauses
+
+```typescript
+import { where } from "gadz";
+
+// Simple field comparisons (automatically converted to JSON_EXTRACT)
+const adults = await where(User, "age > ?", [18]);
+const activeUsers = await where(User, "active = ?", [true]);
+const gmailUsers = await where(User, "email LIKE ?", ["%@gmail.com"]);
+
+// Complex conditions
+const eligibleUsers = await where(User, "age >= ? AND active = ?", [21, true]);
+const searchResults = await where(User, "name LIKE ? OR email LIKE ?", ["%john%", "%john%"]);
+```
+
+### Nested Field Access
+
+```typescript
+// Dot notation for nested objects
+const verifiedUsers = await where(User, "profile.verified = ?", [true]);
+const nyUsers = await where(User, "address.city = ?", ["New York"]);
+const premiumMembers = await where(User, "subscription.tier = ? AND subscription.active = ?", ["premium", true]);
+```
+
+### Advanced SQL Operations
+
+```typescript
+// IN and NOT IN operations
+const teamMembers = await where(User, "role IN (?, ?)", ["admin", "moderator"]);
+const excludedUsers = await where(User, "status NOT IN (?, ?)", ["banned", "suspended"]);
+
+// NULL checks
+const usersWithPhones = await where(User, "phone IS NOT NULL");
+const incompleteProfiles = await where(User, "profile.bio IS NULL");
+
+// Complex boolean logic
+const targetAudience = await where(User, "(age BETWEEN ? AND ?) AND (active = ? OR premium = ?)", [25, 45, true, true]);
+```
+
+### Query Options
+
+```typescript
+// Combine WHERE clauses with sorting, limiting, and pagination
+const results = await where(
+  User, 
+  "age > ? AND active = ?", 
+  [18, true], 
+  { 
+    sort: { created_at: -1 }, 
+    limit: 10, 
+    skip: 20 
+  }
+);
+
+// Alternative syntax when no params needed
+const allActive = await where(User, "active = 1", [], { sort: { name: 1 } });
+```
+
+### Automatic JSON_EXTRACT Conversion
+
+Behind the scenes, Gadz automatically converts field references to proper SQLite JSON operations:
+
+```typescript
+// You write this:
+await where(User, "age > ? AND profile.verified = ?", [25, true]);
+
+// Gadz converts it to:
+// WHERE CAST(JSON_EXTRACT(data, '$.age') AS REAL) > ? AND JSON_EXTRACT(data, '$.profile.verified') = ?
+```
+
+### System Columns
+
+System columns (`id`, `created_at`, `updated_at`) are used directly without JSON conversion:
+
+```typescript
+// Direct column access (no JSON_EXTRACT needed)
+const recentUsers = await where(User, "created_at > ?", ["2024-01-01"]);
+const specificUser = await where(User, "id = ?", [123]);
+const updatedRecently = await where(User, "updated_at > ? AND active = ?", ["2024-12-01", true]);
+```
+
+### WHERE Keyword Handling
+
+The method intelligently handles the WHERE keyword:
+
+```typescript
+// These are all equivalent:
+await where(User, "age > ?", [18]);           // Adds WHERE automatically
+await where(User, "WHERE age > ?", [18]);     // Uses as-is
+await where(User, "where age > ?", [18]);     // Case-insensitive detection
+```
+
+### Mixing with MongoDB-Style Queries
+
+You can still use the original MongoDB-style syntax - both approaches work seamlessly:
+
+```typescript
+// MongoDB-style (original)
+const users1 = await where(User, { age: { $gt: 18 }, active: true });
+
+// SQL-style (new)
+const users2 = await where(User, "age > ? AND active = ?", [18, true]);
+
+// Both return the same results!
+```
 
 ## ✅ Validation
 
@@ -339,13 +457,14 @@ All tests use isolated in-memory databases for fast, reliable testing.
 - `get<T>(constructor, id)` - Get document by ID
 - `find<T>(constructor, filter?, options?)` - Find multiple documents
 - `findOne<T>(constructor, filter?)` - Find single document
+- `where<T>(constructor, whereClause, params?, options?)` - Query with SQL WHERE clauses or MongoDB filters
 - `updateMany<T>(constructor, filter, update, options?)` - Update multiple
 - `deleteMany<T>(constructor, filter)` - Delete multiple
 - `isUnique<T>(document, fieldName)` - Check field uniqueness for validation
 - `raw<T>(sql)` - Execute raw SQL
 
 ### Collection Class
-- Static: `find()`, `findOne()`, `get()`, `saveMany()`, `updateMany()`, `deleteMany()`
+- Static: `find()`, `findOne()`, `get()`, `where()`, `saveMany()`, `updateMany()`, `deleteMany()`
 - Instance: `save()`, `delete()`, `reload()`, `toJSON()`, `toObject()`
 
 ## 📊 Performance
