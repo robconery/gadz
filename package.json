@@ -45,7 +45,7 @@
     "@types/pluralize": "^0.0.33"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.2"
   },
   "scripts": {
     "dev": "bun run --watch example.ts",
@@ -56,6 +56,8 @@
   },
   "type": "module",
   "dependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.2.0",
     "pluralize": "^8.0.0"
   }
 }
