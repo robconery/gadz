@@ -53,7 +53,7 @@ export async function isUnique<T>(
       params = [fieldValue];
     }
     
-    const result = connection.db.query(query).get(...params) as { count: number };
+    const result = connection.db.prepare(query).get(...params) as { count: number };
     return result.count === 0;
   });
 }

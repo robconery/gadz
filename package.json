@@ -9,7 +9,7 @@
     "typescript",
     "orm",
     "document-database",
-    "bun"
+    "nodejs"
   ],
   "homepage": "https://github.com/your-username/gadz",
   "repository": {
@@ -37,22 +37,24 @@
     "LICENSE"
   ],
   "engines": {
-    "bun": ">=1.0.0",
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "@types/pluralize": "^0.0.33"
+    "@types/jest": "^29.5.12",
+    "@types/pluralize": "^0.0.33",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
   },
   "scripts": {
-    "dev": "bun run --watch example.ts",
-    "example": "bun run example.ts",
-    "test": "bun test",
-    "build": "bun build index.ts --outdir ./dist",
-    "prepublishOnly": "bun test && bun run build"
+    "dev": "ts-node --esm example.ts",
+    "example": "ts-node --esm example.ts",
+    "test": "jest",
+    "build": "tsc --build",
+    "prepublishOnly": "npm test && npm run build"
   },
   "type": "module",
   "dependencies": {

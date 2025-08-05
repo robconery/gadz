@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "@jest/globals";
 import { Collection } from "../src/collection";
 import { resetConnection } from "../src/connection";
 import * as fs from "fs";

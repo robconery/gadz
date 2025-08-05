@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "@jest/globals";
 import { 
   connect, 
   close, 
@@ -25,7 +25,7 @@ describe("Production Optimizations", () => {
     
     // Verify database is still functional after maintenance
     await withConnection(async (connection) => {
-      const result = connection.db.query("SELECT 1 as test").get() as { test: number };
+      const result = connection.db.prepare("SELECT 1 as test").get() as { test: number };
       expect(result.test).toBe(1);
     });
   });
@@ -55,14 +55,14 @@ describe("Production Optimizations", () => {
       `);
       
       // Insert parent record
-      connection.db.query("INSERT INTO parent (id) VALUES (1)").run();
+      connection.db.prepare("INSERT INTO parent (id) VALUES (1)").run();
       
       // This should work
-      connection.db.query("INSERT INTO child (parent_id) VALUES (1)").run();
+      connection.db.prepare("INSERT INTO child (parent_id) VALUES (1)").run();
       
       // This should fail due to foreign key constraint
       expect(() => {
-        connection.db.query("INSERT INTO child (parent_id) VALUES (999)").run();
+        connection.db.prepare("INSERT INTO child (parent_id) VALUES (999)").run();
       }).toThrow();
     });
   });
@@ -90,7 +90,7 @@ describe("Production Optimizations", () => {
   });
 
   test("should handle concurrent access properly", async () => {
-    await connect({ poolMax: 5 });
+    await connect({ maintenanceIntervalMs: 5000 });
     
     // Run multiple concurrent operations
     const promises = Array.from({ length: 10 }, async (_, i) => {
@@ -100,11 +100,11 @@ describe("Production Optimizations", () => {
         connection.db.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (id INTEGER PRIMARY KEY, value TEXT)`);
         
         // Insert some data
-        const insert = connection.db.query(`INSERT INTO ${tableName} (value) VALUES (?)`);
+        const insert = connection.db.prepare(`INSERT INTO ${tableName} (value) VALUES (?)`);
         insert.run(`value_${i}`);
         
         // Read it back
-        const select = connection.db.query(`SELECT value FROM ${tableName} WHERE value = ?`);
+        const select = connection.db.prepare(`SELECT value FROM ${tableName} WHERE value = ?`);
         const result = select.get(`value_${i}`) as { value: string };
         
         return result.value;

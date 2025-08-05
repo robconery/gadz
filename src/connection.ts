@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import Database from "better-sqlite3";
 import * as path from "path";
 
 interface ConnectionConfig {
@@ -7,7 +7,7 @@ interface ConnectionConfig {
 }
 
 interface DatabaseConnection {
-  db: Database;
+  db: Database.Database;
   inTransaction: boolean;
   transactionDepth: number;
 }
@@ -15,13 +15,13 @@ interface DatabaseConnection {
 class ConnectionManager {
   private connection: DatabaseConnection | null = null;
   private config: ConnectionConfig = {};
-  private maintenanceTimer: Timer | null = null; // For periodic maintenance
+  private maintenanceTimer: NodeJS.Timeout | null = null; // For periodic maintenance
   private dbPath: string = "";
   
   /**
    * Configure SQLite database with multi-process optimized settings
    */
-  private configureDatabase(db: Database, isInMemory: boolean = false): void {
+  private configureDatabase(db: Database.Database, isInMemory: boolean = false): void {
     // Enable foreign key constraints
     db.exec("PRAGMA foreign_keys = ON;");
     
@@ -243,7 +243,7 @@ class ConnectionManager {
    */
   async collections(): Promise<string[]> {
     return await this.withConnection(async (connection) => {
-      const query = connection.db.query(
+      const query = connection.db.prepare(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
       );
       const tables = query.all() as { name: string }[];
@@ -316,9 +316,9 @@ class ConnectionManager {
       
       try {
         // Get basic database info
-        const pageCountResult = connection.db.query("PRAGMA page_count").get() as any;
-        const pageSizeResult = connection.db.query("PRAGMA page_size").get() as any;
-        const freePageResult = connection.db.query("PRAGMA freelist_count").get() as any;
+        const pageCountResult = connection.db.prepare("PRAGMA page_count").get() as any;
+        const pageSizeResult = connection.db.prepare("PRAGMA page_size").get() as any;
+        const freePageResult = connection.db.prepare("PRAGMA freelist_count").get() as any;
         
         // Handle different result formats
         stats.totalPages = pageCountResult?.page_count ?? pageCountResult ?? 0;
@@ -333,7 +333,7 @@ class ConnectionManager {
         // For in-memory databases or test environment, WAL info should be null
         if (this.dbPath !== ":memory:" && process.env.NODE_ENV !== "test") {
           try {
-            const walResult = connection.db.query("PRAGMA wal_checkpoint").get();
+            const walResult = connection.db.prepare("PRAGMA wal_checkpoint").get();
             stats.walInfo = walResult;
           } catch (e) {
             // WAL might not be enabled or supported
@@ -342,7 +342,7 @@ class ConnectionManager {
         }
         
         // Cache information
-        const cacheSizeResult = connection.db.query("PRAGMA cache_size").get() as any;
+        const cacheSizeResult = connection.db.prepare("PRAGMA cache_size").get() as any;
         stats.cacheSize = cacheSizeResult?.cache_size ?? cacheSizeResult ?? -32768;
         
       } catch (error) {

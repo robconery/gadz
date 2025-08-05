@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "@jest/globals";
 import { 
   connect, 
   close, 
@@ -65,7 +65,7 @@ describe("Connection Manager", () => {
       await connect();
       
       const result = await withConnection(async (connection) => {
-        const query = connection.db.query("SELECT 1 as test");
+        const query = connection.db.prepare("SELECT 1 as test");
         return query.get() as { test: number };
       });
       
@@ -79,7 +79,7 @@ describe("Connection Manager", () => {
         withConnection(async (connection) => {
           // Simulate some work
           await new Promise(resolve => setTimeout(resolve, 10));
-          const query = connection.db.query("SELECT ? as value");
+          const query = connection.db.prepare("SELECT ? as value");
           return (query.get(i) as { value: number }).value;
         })
       );
@@ -117,14 +117,14 @@ describe("Connection Manager", () => {
             name TEXT NOT NULL
           )
         `);
-        const insert = connection.db.query("INSERT INTO test_users (name) VALUES (?)");
+        const insert = connection.db.prepare("INSERT INTO test_users (name) VALUES (?)");
         insert.run("Alice");
         insert.run("Bob");
       });
       
       // Verify data was committed
       const users = await withConnection(async (connection) => {
-        const query = connection.db.query("SELECT name FROM test_users ORDER BY name");
+        const query = connection.db.prepare("SELECT name FROM test_users ORDER BY name");
         return query.all() as { name: string }[];
       });
       
@@ -143,14 +143,14 @@ describe("Connection Manager", () => {
             name TEXT NOT NULL UNIQUE
           )
         `);
-        const insert = connection.db.query("INSERT INTO test_products (name) VALUES (?)");
+        const insert = connection.db.prepare("INSERT INTO test_products (name) VALUES (?)");
         insert.run("Product A");
       });
       
       // Try to insert duplicate in transaction (should rollback)
       await expect(
         withTransaction(async (connection) => {
-          const insert = connection.db.query("INSERT INTO test_products (name) VALUES (?)");
+          const insert = connection.db.prepare("INSERT INTO test_products (name) VALUES (?)");
           insert.run("Product B");
           insert.run("Product A"); // This should cause constraint violation
         })
@@ -158,7 +158,7 @@ describe("Connection Manager", () => {
       
       // Verify only the first record exists
       const products = await withConnection(async (connection) => {
-        const query = connection.db.query("SELECT name FROM test_products");
+        const query = connection.db.prepare("SELECT name FROM test_products");
         return query.all() as { name: string }[];
       });
       
@@ -180,12 +180,12 @@ describe("Connection Manager", () => {
         
         expect(connection.inTransaction).toBe(true);
         
-        const insert = connection.db.query("INSERT INTO test_items (value) VALUES (?)");
+        const insert = connection.db.prepare("INSERT INTO test_items (value) VALUES (?)");
         insert.run(42);
       });
       
       const count = await withConnection(async (connection) => {
-        const query = connection.db.query("SELECT COUNT(*) as count FROM test_items");
+        const query = connection.db.prepare("SELECT COUNT(*) as count FROM test_items");
         return (query.get() as { count: number }).count;
       });
       
@@ -224,7 +224,7 @@ describe("Connection Manager", () => {
     test("should auto-connect when using withConnection", async () => {
       // With the new strategy, connections are auto-initialized
       const result = await withConnection(async (connection) => {
-        const query = connection.db.query("SELECT 1 as test");
+        const query = connection.db.prepare("SELECT 1 as test");
         return query.get() as { test: number };
       });
       expect(result.test).toBe(1);
@@ -233,7 +233,7 @@ describe("Connection Manager", () => {
     test("should auto-connect when using withTransaction", async () => {
       // With the new strategy, connections are auto-initialized
       const result = await withTransaction(async (connection) => {
-        const query = connection.db.query("SELECT 2 as test");
+        const query = connection.db.prepare("SELECT 2 as test");
         return query.get() as { test: number };
       });
       expect(result.test).toBe(2);
@@ -245,7 +245,7 @@ describe("Connection Manager", () => {
       await expect(
         withConnection(async (connection) => {
           // Try to query non-existent table
-          const query = connection.db.query("SELECT * FROM non_existent_table");
+          const query = connection.db.prepare("SELECT * FROM non_existent_table");
           return query.get();
         })
       ).rejects.toThrow();

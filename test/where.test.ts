@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import { where, save, raw } from "../src/operations";
 import { withConnection } from "../src/connection";
 
