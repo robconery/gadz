@@ -3,7 +3,8 @@ import {
   save,
   find,
   isUnique,
-  withConnection
+  withConnection,
+  resetConnection
 } from "../index";
 
 // Set test environment
@@ -53,6 +54,10 @@ class Product {
 }
 
 describe("Validation System", () => {
+  
+  afterEach(async () => {
+    await resetConnection();
+  });
 
   describe("_validate method integration", () => {
     test("should save document with valid _validate method", async () => {

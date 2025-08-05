@@ -6,6 +6,7 @@ import {
   findOne,
   collections,
   deleteMany,
+  resetConnection,
   type DocumentWithMeta
 } from "../index";
 
@@ -45,6 +46,10 @@ class Product {
 }
 
 describe("MongoDB API Operations", () => {
+  
+  afterEach(async () => {
+    await resetConnection();
+  });
 
   describe("save operations", () => {
     test("should save a new document and assign ID", async () => {

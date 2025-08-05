@@ -5,12 +5,12 @@ export {
   collections, 
   withConnection, 
   withTransaction, 
-  getPoolStatus, 
+  getConnectionStatus, 
   isConnected, 
   maintenance,
   getDatabaseStats,
   resetConnection,
-  type PooledDatabase, 
+  type DatabaseConnection, 
   type ConnectionConfig 
 } from "./src/connection";
 

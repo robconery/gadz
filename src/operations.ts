@@ -180,17 +180,17 @@ export async function save<T>(document: T, options: SaveOptions = { upsert: true
   if (constructorName === 'Object' && (document as any).id) {
     // For plain objects with ID, we need to find which table contains this ID
     // We'll scan common table names - this is a fallback for spread objects
-    const possibleTables = await withConnection(async (pooledDb) => {
-      const query = pooledDb.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+    const possibleTables = await withConnection(async (connection) => {
+      const query = connection.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
       const tables = query.all() as { name: string }[];
       return tables.map(t => t.name);
     });
     
     let foundTable: string | null = null;
     for (const table of possibleTables) {
-      const exists = await withConnection(async (pooledDb) => {
+      const exists = await withConnection(async (connection) => {
         try {
-          const query = pooledDb.db.query(`SELECT 1 FROM ${table} WHERE id = ? LIMIT 1`);
+          const query = connection.db.query(`SELECT 1 FROM ${table} WHERE id = ? LIMIT 1`);
           return query.get((document as any).id) !== null;
         } catch {
           return false;
@@ -216,7 +216,7 @@ export async function save<T>(document: T, options: SaveOptions = { upsert: true
   // Call _validate method if it exists on the document
   await validateDocument(document);
   
-  return await withTransaction(async (pooledDb) => {
+  return await withTransaction(async (connection) => {
     // Remove timestamp fields from document data before storing
     const { id, created_at, updated_at, ...docWithoutMeta } = document as any;
     const docData = JSON.stringify(docWithoutMeta);
@@ -224,7 +224,7 @@ export async function save<T>(document: T, options: SaveOptions = { upsert: true
     
     if (hasId) {
       // Use INSERT ... ON CONFLICT for proper upsert behavior
-      const upsertQuery = pooledDb.db.query(`
+      const upsertQuery = connection.db.query(`
         INSERT INTO ${tableName} (id, data) 
         VALUES (?, ?)
         ON CONFLICT(id) DO UPDATE SET 
@@ -249,7 +249,7 @@ export async function save<T>(document: T, options: SaveOptions = { upsert: true
       } as T & DocumentWithMeta;
     } else {
       // Insert new document using RETURNING to get inserted data
-      const insertQuery = pooledDb.db.query(`
+      const insertQuery = connection.db.query(`
         INSERT INTO ${tableName} (data) 
         VALUES (?)
         RETURNING id, data, created_at, updated_at
@@ -286,8 +286,8 @@ export async function get<T>(
   // Ensure table exists
   await ensureTable(tableName);
   
-  return await withConnection(async (pooledDb) => {
-    const query = pooledDb.db.query(`
+  return await withConnection(async (connection) => {
+    const query = connection.db.query(`
       SELECT id, data, created_at, updated_at 
       FROM ${tableName} 
       WHERE id = ?
@@ -328,7 +328,7 @@ export async function find<T>(
   // Ensure table exists
   await ensureTable(tableName);
   
-  return await withConnection(async (pooledDb) => {
+  return await withConnection(async (connection) => {
     const { clause: whereClause, params } = buildWhereClause(filter);
     const orderClause = buildOrderClause(options.sort);
     
@@ -342,7 +342,7 @@ export async function find<T>(
       sql += ` OFFSET ${options.skip}`;
     }
     
-    const query = pooledDb.db.query(sql);
+    const query = connection.db.query(sql);
     const rows = query.all(...params) as {
       id: number;
       data: string;
@@ -404,7 +404,7 @@ export async function saveMany<T>(...documents: (T | T[])[]): Promise<(T & Docum
   // Ensure table exists
   await ensureTable(tableName);
   
-  return await withTransaction(async (pooledDb) => {
+  return await withTransaction(async (connection) => {
     const results: (T & DocumentWithMeta)[] = [];
     
     for (const document of flatDocs) {
@@ -418,7 +418,7 @@ export async function saveMany<T>(...documents: (T | T[])[]): Promise<(T & Docum
       
       if (hasId) {
         // Use INSERT ... ON CONFLICT for proper upsert behavior
-        const upsertQuery = pooledDb.db.query(`
+        const upsertQuery = connection.db.query(`
           INSERT INTO ${tableName} (id, data) 
           VALUES (?, ?)
           ON CONFLICT(id) DO UPDATE SET 
@@ -443,7 +443,7 @@ export async function saveMany<T>(...documents: (T | T[])[]): Promise<(T & Docum
         } as T & DocumentWithMeta);
       } else {
         // Insert new document using RETURNING to get inserted data
-        const insertQuery = pooledDb.db.query(`
+        const insertQuery = connection.db.query(`
           INSERT INTO ${tableName} (data) 
           VALUES (?)
           RETURNING id, data, created_at, updated_at
@@ -487,11 +487,11 @@ export async function updateMany<T>(
   const tableName = getCollectionName(constructor);
   await ensureTable(tableName);
   
-  return await withTransaction(async (pooledDb) => {
+  return await withTransaction(async (connection) => {
     const { clause: whereClause, params: whereParams } = buildWhereClause(filter);
     
     // Update existing documents
-    const selectQuery = pooledDb.db.query(`
+    const selectQuery = connection.db.query(`
       SELECT id, data FROM ${tableName} ${whereClause || 'WHERE 1=1'}
     `);
     const existingDocs = selectQuery.all(...(whereParams || [])) as { id: number; data: string }[];
@@ -503,7 +503,7 @@ export async function updateMany<T>(
         const parsedData = JSON.parse(doc.data);
         const updatedData = { ...parsedData, ...update.$set };
         
-        const updateQuery = pooledDb.db.query(`
+        const updateQuery = connection.db.query(`
           UPDATE ${tableName} 
           SET data = ?, updated_at = datetime('now') 
           WHERE id = ?
@@ -519,7 +519,7 @@ export async function updateMany<T>(
     } else if (options.upsert) {
       // No documents matched and upsert is true, create new document
       const newDoc = update.$set;
-      const insertQuery = pooledDb.db.query(`
+      const insertQuery = connection.db.query(`
         INSERT INTO ${tableName} (data) 
         VALUES (?)
         RETURNING id
@@ -551,14 +551,14 @@ export async function deleteMany<T>(
   const tableName = getCollectionName(constructor);
   await ensureTable(tableName);
   
-  return await withTransaction(async (pooledDb) => {
+  return await withTransaction(async (connection) => {
     const { clause: whereClause, params } = buildWhereClause(filter);
     
     if (!whereClause) {
       throw new Error("deleteMany requires a filter to prevent accidental deletion of all documents");
     }
     
-    const deleteQuery = pooledDb.db.query(`
+    const deleteQuery = connection.db.query(`
       DELETE FROM ${tableName} ${whereClause}
     `);
     const result = deleteQuery.run(...params);
@@ -579,14 +579,14 @@ export async function deleteOne<T>(
   const tableName = getCollectionName(constructor);
   await ensureTable(tableName);
   
-  return await withConnection(async (pooledDb) => {
+  return await withConnection(async (connection) => {
     const { clause: whereClause, params } = buildWhereClause(filter);
     
     if (!whereClause) {
       throw new Error("deleteOne requires a filter");
     }
     
-    const deleteQuery = pooledDb.db.query(`
+    const deleteQuery = connection.db.query(`
       DELETE FROM ${tableName} ${whereClause} LIMIT 1
     `);
     const result = deleteQuery.run(...params);
@@ -601,8 +601,8 @@ export async function deleteOne<T>(
  * Execute raw SQL with optional typing
  */
 export async function raw<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-  return await withConnection(async (pooledDb) => {
-    const query = pooledDb.db.query(sql);
+  return await withConnection(async (connection) => {
+    const query = connection.db.query(sql);
     const results = query.all(...params);
     return results as T[];
   });

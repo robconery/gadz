@@ -5,13 +5,18 @@ import {
   withConnection, 
   getDatabaseStats,
   maintenance,
-  isConnected 
+  isConnected,
+  resetConnection
 } from "../src/connection";
 
 // Set test environment
 process.env.NODE_ENV = "test";
 
 describe("Production Optimizations", () => {
+  
+  afterEach(async () => {
+    await resetConnection();
+  });
 
   test("should handle maintenance operations", async () => {
 
@@ -19,8 +24,8 @@ describe("Production Optimizations", () => {
     await maintenance();
     
     // Verify database is still functional after maintenance
-    await withConnection(async (pooledDb) => {
-      const result = pooledDb.db.query("SELECT 1 as test").get() as { test: number };
+    await withConnection(async (connection) => {
+      const result = connection.db.query("SELECT 1 as test").get() as { test: number };
       expect(result.test).toBe(1);
     });
   });
@@ -39,9 +44,9 @@ describe("Production Optimizations", () => {
   test("should verify foreign key constraints are enabled", async () => {
     await connect();
     
-    await withConnection(async (pooledDb) => {
+    await withConnection(async (connection) => {
       // Create tables with foreign key relationship
-      pooledDb.db.exec(`
+      connection.db.exec(`
         CREATE TABLE parent (id INTEGER PRIMARY KEY);
         CREATE TABLE child (
           id INTEGER PRIMARY KEY,
@@ -50,14 +55,14 @@ describe("Production Optimizations", () => {
       `);
       
       // Insert parent record
-      pooledDb.db.query("INSERT INTO parent (id) VALUES (1)").run();
+      connection.db.query("INSERT INTO parent (id) VALUES (1)").run();
       
       // This should work
-      pooledDb.db.query("INSERT INTO child (parent_id) VALUES (1)").run();
+      connection.db.query("INSERT INTO child (parent_id) VALUES (1)").run();
       
       // This should fail due to foreign key constraint
       expect(() => {
-        pooledDb.db.query("INSERT INTO child (parent_id) VALUES (999)").run();
+        connection.db.query("INSERT INTO child (parent_id) VALUES (999)").run();
       }).toThrow();
     });
   });
@@ -89,17 +94,17 @@ describe("Production Optimizations", () => {
     
     // Run multiple concurrent operations
     const promises = Array.from({ length: 10 }, async (_, i) => {
-      return await withConnection(async (pooledDb) => {
+      return await withConnection(async (connection) => {
         // Create a table specific to this operation
         const tableName = `test_table_${i}`;
-        pooledDb.db.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (id INTEGER PRIMARY KEY, value TEXT)`);
+        connection.db.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (id INTEGER PRIMARY KEY, value TEXT)`);
         
         // Insert some data
-        const insert = pooledDb.db.query(`INSERT INTO ${tableName} (value) VALUES (?)`);
+        const insert = connection.db.query(`INSERT INTO ${tableName} (value) VALUES (?)`);
         insert.run(`value_${i}`);
         
         // Read it back
-        const select = pooledDb.db.query(`SELECT value FROM ${tableName} WHERE value = ?`);
+        const select = connection.db.query(`SELECT value FROM ${tableName} WHERE value = ?`);
         const result = select.get(`value_${i}`) as { value: string };
         
         return result.value;

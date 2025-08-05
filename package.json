@@ -42,7 +42,6 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/generic-pool": "^3.8.3",
     "@types/pluralize": "^0.0.33"
   },
   "peerDependencies": {
@@ -57,7 +56,6 @@
   },
   "type": "module",
   "dependencies": {
-    "generic-pool": "^3.9.0",
     "pluralize": "^8.0.0"
   }
 }

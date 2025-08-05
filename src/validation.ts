@@ -31,7 +31,7 @@ export async function isUnique<T>(
   // Ensure table exists before querying
   await ensureTable(tableName);
   
-  return await withConnection(async (pooledDb) => {
+  return await withConnection(async (connection) => {
     let query: string;
     let params: any[];
     
@@ -53,7 +53,7 @@ export async function isUnique<T>(
       params = [fieldValue];
     }
     
-    const result = pooledDb.db.query(query).get(...params) as { count: number };
+    const result = connection.db.query(query).get(...params) as { count: number };
     return result.count === 0;
   });
 }

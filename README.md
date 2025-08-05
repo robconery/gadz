@@ -12,10 +12,10 @@ A MongoDB-compatible API with SQLite backend for TypeScript applications. Provid
 - **MongoDB-Style API**: Use familiar MongoDB operations like `find()`, `save()`, `updateMany()`
 - **Type Safety**: Full TypeScript support with generic types
 - **SQLite Backend**: Fast, embedded database with WAL mode for concurrent access
-- **Connection Pooling**: Production-ready connection management
+- **Multi-Process Ready**: Optimized for concurrent access across multiple Node processes
 - **Collection Class**: ActiveRecord-style ORM pattern
 - **Query Operators**: Support for `$gt`, `$lt`, `$in`, `$exists`, and more
-- **Transactions**: Built-in transaction support for data consistency
+- **Transactions**: Built-in transaction support with nested transaction capability
 
 ## 📦 Installation
 
@@ -116,13 +116,18 @@ import { connect } from "gadz";
 
 await connect({
   path: "db/production.db",           // Database file path
-  poolMin: 2,                         // Minimum pool connections
-  poolMax: 10,                        // Maximum pool connections
-  poolAcquireTimeoutMs: 30000,        // Connection timeout
-  poolIdleTimeoutMs: 300000,          // Idle timeout
-  maintenanceIntervalMs: 300000       // Maintenance interval
+  maintenanceIntervalMs: 300000       // Maintenance interval (optional)
 });
 ```
+
+### Multi-Process Support
+
+Gadz is optimized for multi-process environments (PM2, cluster mode, etc.):
+
+- **WAL Mode**: Enabled by default for concurrent read/write access
+- **Busy Timeout**: 60-second timeout handles process coordination
+- **Shared Cache**: Reduces memory usage across processes
+- **Auto-Recovery**: Connections auto-reconnect on database locks
 
 ## 🧪 Testing
 
@@ -136,8 +141,9 @@ All tests use isolated in-memory databases for fast, reliable testing.
 
 ### Connection Management
 - `connect(config?)` - Connect to database
-- `close()` - Close all connections
+- `close()` - Close database connection
 - `isConnected()` - Check connection status
+- `getConnectionStatus()` - Get detailed connection info
 
 ### Functional API
 - `save<T>(document, options?)` - Save/upsert document
@@ -154,10 +160,11 @@ All tests use isolated in-memory databases for fast, reliable testing.
 
 ## 📊 Performance
 
-- **WAL Mode**: Concurrent read/write operations
-- **Connection Pooling**: Efficient resource management
-- **JSON Storage**: Flexible document structure
+- **WAL Mode**: Concurrent read/write operations across multiple processes
+- **Single Connection**: One optimized connection per Node process
+- **JSON Storage**: Flexible document structure with SQLite's JSON functions
 - **Optimized Queries**: Proper indexing on ID and timestamps
+- **Nested Transactions**: Savepoint-based transaction nesting for complex operations
 
 ## 📄 License
 

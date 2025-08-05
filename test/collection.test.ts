@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { Collection } from "../src/collection";
+import { resetConnection } from "../src/connection";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -36,6 +37,10 @@ class Order extends Collection<Order> {
 }
 
 describe("Collection class", () => {
+  
+  afterEach(async () => {
+    await resetConnection();
+  });
 
   test("should provide static get method", async () => {
     // First save a user

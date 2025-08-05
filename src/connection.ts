@@ -1,58 +1,48 @@
 import { Database } from "bun:sqlite";
-import { createPool, Pool } from "generic-pool";
 import * as path from "path";
-
-interface PooledDatabase {
-  db: Database;
-  inTransaction: boolean;
-}
 
 interface ConnectionConfig {
   path?: string;
-  poolMin?: number;
-  poolMax?: number;
-  poolAcquireTimeoutMs?: number;
-  poolIdleTimeoutMs?: number;
   maintenanceIntervalMs?: number; // For periodic maintenance
 }
 
+interface DatabaseConnection {
+  db: Database;
+  inTransaction: boolean;
+  transactionDepth: number;
+}
+
 class ConnectionManager {
-  private pool: Pool<PooledDatabase> | null = null;
+  private connection: DatabaseConnection | null = null;
   private config: ConnectionConfig = {};
-  private sharedDatabase: Database | null = null; // For in-memory databases
   private maintenanceTimer: Timer | null = null; // For periodic maintenance
+  private dbPath: string = "";
   
   /**
-   * Configure SQLite database with production-optimized settings
+   * Configure SQLite database with multi-process optimized settings
    */
   private configureDatabase(db: Database, isInMemory: boolean = false): void {
     // Enable foreign key constraints
     db.exec("PRAGMA foreign_keys = ON;");
     
     if (!isInMemory) {
-      // Enable WAL mode for better concurrency and performance
+      // Enable WAL mode for multi-process concurrency
       db.exec("PRAGMA journal_mode = WAL;");
       
-      // Set WAL checkpoint mode for better performance
-      db.exec("PRAGMA wal_checkpoint_threshold = 1000;");
-      
-      // Optimize synchronous mode for production
-      // NORMAL provides good balance of safety and performance
+      // Optimize synchronous mode for multi-process safety
+      // NORMAL provides good balance of safety and performance for multi-process
       db.exec("PRAGMA synchronous = NORMAL;");
       
-      // Increase cache size (negative value = KB, positive = pages)
-      // 64MB cache size
-      db.exec("PRAGMA cache_size = -65536;");
+      // Increase cache size per connection
+      // 32MB cache size per process
+      db.exec("PRAGMA cache_size = -32768;");
       
       // Set temp store to memory for better performance
       db.exec("PRAGMA temp_store = MEMORY;");
       
-      // Optimize page size (default 4096 is usually good)
-      // Only set on database creation, can't change after
-      db.exec("PRAGMA page_size = 4096;");
-      
-      // Set busy timeout to handle concurrent access
-      db.exec("PRAGMA busy_timeout = 30000;");
+      // Critical: Set busy timeout for multi-process access
+      // 60 seconds timeout to handle concurrent writes from multiple processes
+      db.exec("PRAGMA busy_timeout = 60000;");
       
       // Enable query optimization
       db.exec("PRAGMA optimize;");
@@ -60,12 +50,15 @@ class ConnectionManager {
       // Auto-vacuum for better space management
       db.exec("PRAGMA auto_vacuum = INCREMENTAL;");
       
-      // Set mmap size for better performance on larger databases
-      // 256MB mmap size
-      db.exec("PRAGMA mmap_size = 268435456;");
+      // Set mmap size for better performance
+      // 128MB mmap size per process (lower than pool version)
+      db.exec("PRAGMA mmap_size = 134217728;");
+      
+      // Enable shared cache mode for better memory usage
+      db.exec("PRAGMA cache = shared;");
     } else {
       // In-memory specific optimizations
-      db.exec("PRAGMA cache_size = -32768;"); // 32MB for in-memory
+      db.exec("PRAGMA cache_size = -16384;"); // 16MB for in-memory
       db.exec("PRAGMA temp_store = MEMORY;");
       db.exec("PRAGMA synchronous = OFF;"); // Safe for in-memory
       db.exec("PRAGMA journal_mode = MEMORY;");
@@ -73,88 +66,38 @@ class ConnectionManager {
   }
   
   /**
-   * Initialize the connection pool based on environment
+   * Initialize the database connection based on environment
    */
   async connect(config: ConnectionConfig = {}): Promise<void> {
-    if (this.pool) {
+    if (this.connection) {
       throw new Error("Already connected. Call close() first.");
     }
 
     this.config = {
-      poolMin: 2,
-      poolMax: 10,
-      poolAcquireTimeoutMs: 30000,
-      poolIdleTimeoutMs: 60000,
       maintenanceIntervalMs: 300000, // 5 minutes
       ...config
     };
 
     // Determine database path based on environment
-    let dbPath: string;
     if (process.env.NODE_ENV === "test") {
       // Use unique in-memory database for each test run to ensure isolation
-      dbPath = `:memory:`;
+      this.dbPath = `:memory:`;
     } else {
-      dbPath = process.env.SQLITE_PATH || config.path || path.join(process.cwd(), "db", "dev.db");
+      this.dbPath = process.env.SQLITE_PATH || config.path || path.join(process.cwd(), "db", "dev.db");
     }
 
-    // For in-memory databases, create a shared database instance
-    // (This code path is now unused in tests, but kept for potential future use)
-    if (dbPath === ":memory:") {
-      this.sharedDatabase = new Database(":memory:");
-      this.configureDatabase(this.sharedDatabase, true);
-    }
-
-    this.pool = createPool(
-      {
-        create: async (): Promise<PooledDatabase> => {
-          let db: Database;
-          
-          if (this.sharedDatabase) {
-            // Use the shared in-memory database
-            db = this.sharedDatabase;
-          } else {
-            // Create a new Database instance for each pooled connection for file-based databases
-            db = new Database(dbPath);
-            this.configureDatabase(db, false);
-          }
-          
-          return { db, inTransaction: false };
-        },
-        destroy: async (pooledDb: PooledDatabase): Promise<void> => {
-          if (pooledDb.inTransaction) {
-            try {
-              pooledDb.db.exec("ROLLBACK;");
-            } catch (e) {
-              // Ignore rollback errors on destroy
-            }
-          }
-          // Don't close shared in-memory database connections
-          if (!this.sharedDatabase) {
-            pooledDb.db.close();
-          }
-        },
-        validate: async (pooledDb: PooledDatabase): Promise<boolean> => {
-          try {
-            // Simple validation query
-            pooledDb.db.query("SELECT 1").get();
-            return true;
-          } catch {
-            return false;
-          }
-        }
-      },
-      {
-        min: this.config.poolMin,
-        max: this.config.poolMax,
-        acquireTimeoutMillis: this.config.poolAcquireTimeoutMs,
-        idleTimeoutMillis: this.config.poolIdleTimeoutMs,
-        testOnBorrow: true
-      }
-    );
+    // Create single database connection for this process
+    const db = new Database(this.dbPath);
+    this.configureDatabase(db, this.dbPath === ":memory:");
+    
+    this.connection = { 
+      db, 
+      inTransaction: false, 
+      transactionDepth: 0 
+    };
 
     // Start maintenance timer for file-based databases
-    if (dbPath !== ":memory:" && this.config.maintenanceIntervalMs) {
+    if (this.dbPath !== ":memory:" && this.config.maintenanceIntervalMs) {
       this.startMaintenance();
     }
   }
@@ -178,18 +121,23 @@ class ConnectionManager {
    * Run database maintenance operations
    */
   private async runMaintenance(): Promise<void> {
-    if (!this.pool || this.sharedDatabase) return;
+    if (!this.connection || this.dbPath === ":memory:") return;
 
-    await this.withConnection(async (pooledDb) => {
-      // WAL checkpoint to move data from WAL to main database
-      pooledDb.db.exec("PRAGMA wal_checkpoint(PASSIVE);");
-      
-      // Optimize query planner
-      pooledDb.db.exec("PRAGMA optimize;");
-      
-      // Incremental vacuum if auto_vacuum is enabled
-      pooledDb.db.exec("PRAGMA incremental_vacuum;");
-    });
+    // Only run maintenance if not in transaction
+    if (!this.connection.inTransaction) {
+      try {
+        // WAL checkpoint to move data from WAL to main database
+        this.connection.db.exec("PRAGMA wal_checkpoint(PASSIVE);");
+        
+        // Optimize query planner
+        this.connection.db.exec("PRAGMA optimize;");
+        
+        // Incremental vacuum if auto_vacuum is enabled
+        this.connection.db.exec("PRAGMA incremental_vacuum;");
+      } catch (error) {
+        console.warn("Maintenance operation failed:", error);
+      }
+    }
   }
 
   /**
@@ -203,98 +151,90 @@ class ConnectionManager {
   }
 
   /**
-   * Get a database connection from the pool (with auto-initialization)
+   * Get the database connection (with auto-initialization)
    */
-  async acquire(): Promise<PooledDatabase> {
+  async getConnection(): Promise<DatabaseConnection> {
     // Auto-initialize if not connected
-    if (!this.pool) {
+    if (!this.connection) {
       await this.connect();
     }
-    return await this.pool!.acquire();
+    return this.connection!;
   }
 
   /**
-   * Return a database connection to the pool
+   * Begin a transaction (supports nested transactions with savepoints)
    */
-  async release(pooledDb: PooledDatabase): Promise<void> {
-    if (!this.pool) {
-      throw new Error("Not connected.");
+  async beginTransaction(connection: DatabaseConnection): Promise<void> {
+    if (connection.transactionDepth === 0) {
+      connection.db.exec("BEGIN;");
+      connection.inTransaction = true;
+    } else {
+      // Use savepoint for nested transactions
+      connection.db.exec(`SAVEPOINT sp_${connection.transactionDepth};`);
     }
-    
-    // If connection is in transaction, rollback before releasing
-    if (pooledDb.inTransaction) {
-      try {
-        pooledDb.db.exec("ROLLBACK;");
-        pooledDb.inTransaction = false;
-      } catch (e) {
-        // Log error but continue with release
-        console.warn("Error rolling back transaction:", e);
-      }
-    }
-    
-    await this.pool.release(pooledDb);
+    connection.transactionDepth++;
   }
 
   /**
-   * Begin a transaction on a pooled connection
+   * Commit a transaction (handles nested transactions with savepoints)
    */
-  async beginTransaction(pooledDb: PooledDatabase): Promise<void> {
-    if (pooledDb.inTransaction) {
-      throw new Error("Connection already in transaction");
-    }
-    pooledDb.db.exec("BEGIN;");
-    pooledDb.inTransaction = true;
-  }
-
-  /**
-   * Commit a transaction on a pooled connection
-   */
-  async commitTransaction(pooledDb: PooledDatabase): Promise<void> {
-    if (!pooledDb.inTransaction) {
+  async commitTransaction(connection: DatabaseConnection): Promise<void> {
+    if (connection.transactionDepth === 0) {
       throw new Error("No active transaction");
     }
-    pooledDb.db.exec("COMMIT;");
-    pooledDb.inTransaction = false;
+    
+    connection.transactionDepth--;
+    
+    if (connection.transactionDepth === 0) {
+      connection.db.exec("COMMIT;");
+      connection.inTransaction = false;
+    } else {
+      // Release savepoint for nested transaction
+      connection.db.exec(`RELEASE SAVEPOINT sp_${connection.transactionDepth};`);
+    }
   }
 
   /**
-   * Rollback a transaction on a pooled connection
+   * Rollback a transaction (handles nested transactions with savepoints)
    */
-  async rollbackTransaction(pooledDb: PooledDatabase): Promise<void> {
-    if (!pooledDb.inTransaction) {
+  async rollbackTransaction(connection: DatabaseConnection): Promise<void> {
+    if (connection.transactionDepth === 0) {
       throw new Error("No active transaction");
     }
-    pooledDb.db.exec("ROLLBACK;");
-    pooledDb.inTransaction = false;
-  }
-
-  /**
-   * Execute a function with a database connection
-   */
-  async withConnection<T>(fn: (pooledDb: PooledDatabase) => Promise<T> | T): Promise<T> {
-    const pooledDb = await this.acquire();
-    try {
-      return await fn(pooledDb);
-    } finally {
-      await this.release(pooledDb);
+    
+    connection.transactionDepth--;
+    
+    if (connection.transactionDepth === 0) {
+      connection.db.exec("ROLLBACK;");
+      connection.inTransaction = false;
+    } else {
+      // Rollback to savepoint for nested transaction
+      connection.db.exec(`ROLLBACK TO SAVEPOINT sp_${connection.transactionDepth};`);
     }
   }
 
   /**
-   * Execute a function within a transaction
+   * Execute a function with the database connection
    */
-  async withTransaction<T>(fn: (pooledDb: PooledDatabase) => Promise<T> | T): Promise<T> {
-    const pooledDb = await this.acquire();
+  async withConnection<T>(fn: (connection: DatabaseConnection) => Promise<T> | T): Promise<T> {
+    const connection = await this.getConnection();
+    return await fn(connection);
+  }
+
+  /**
+   * Execute a function within a transaction (supports nesting)
+   */
+  async withTransaction<T>(fn: (connection: DatabaseConnection) => Promise<T> | T): Promise<T> {
+    const connection = await this.getConnection();
+    
+    await this.beginTransaction(connection);
     try {
-      await this.beginTransaction(pooledDb);
-      const result = await fn(pooledDb);
-      await this.commitTransaction(pooledDb);
+      const result = await fn(connection);
+      await this.commitTransaction(connection);
       return result;
     } catch (error) {
-      await this.rollbackTransaction(pooledDb);
+      await this.rollbackTransaction(connection);
       throw error;
-    } finally {
-      await this.release(pooledDb);
     }
   }
 
@@ -302,8 +242,8 @@ class ConnectionManager {
    * Get list of all tables (collections)
    */
   async collections(): Promise<string[]> {
-    return await this.withConnection(async (pooledDb) => {
-      const query = pooledDb.db.query(
+    return await this.withConnection(async (connection) => {
+      const query = connection.db.query(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
       );
       const tables = query.all() as { name: string }[];
@@ -312,40 +252,40 @@ class ConnectionManager {
   }
 
   /**
-   * Close all connections and destroy the pool
+   * Close the database connection
    */
   async close(): Promise<void> {
     // Stop maintenance operations
     this.stopMaintenance();
     
-    if (this.pool) {
-      await this.pool.drain();
-      await this.pool.clear();
-      this.pool = null;
-    }
-    
-    // Close shared database if it exists
-    if (this.sharedDatabase) {
-      this.sharedDatabase.close();
-      this.sharedDatabase = null;
+    if (this.connection) {
+      // Rollback any pending transaction
+      if (this.connection.inTransaction) {
+        try {
+          this.connection.db.exec("ROLLBACK;");
+        } catch (e) {
+          // Ignore rollback errors on close
+        }
+      }
+      
+      this.connection.db.close();
+      this.connection = null;
     }
   }
 
   /**
-   * Get pool status information
+   * Get connection status information
    */
-  getPoolStatus() {
-    if (!this.pool) {
+  getConnectionStatus() {
+    if (!this.connection) {
       return null;
     }
     
     return {
-      size: this.pool.size,
-      available: this.pool.available,
-      borrowed: this.pool.borrowed,
-      pending: this.pool.pending,
-      min: this.config.poolMin,
-      max: this.config.poolMax
+      connected: true,
+      inTransaction: this.connection.inTransaction,
+      transactionDepth: this.connection.transactionDepth,
+      dbPath: this.dbPath
     };
   }
 
@@ -353,7 +293,7 @@ class ConnectionManager {
    * Check if connected
    */
   isConnected(): boolean {
-    return this.pool !== null;
+    return this.connection !== null;
   }
 
   /**
@@ -367,18 +307,18 @@ class ConnectionManager {
    * Get database statistics and health information
    */
   async getDatabaseStats(): Promise<any> {
-    if (!this.pool) {
+    if (!this.connection) {
       throw new Error("Not connected");
     }
 
-    return await this.withConnection(async (pooledDb) => {
+    return await this.withConnection(async (connection) => {
       const stats: any = {};
       
       try {
         // Get basic database info
-        const pageCountResult = pooledDb.db.query("PRAGMA page_count").get() as any;
-        const pageSizeResult = pooledDb.db.query("PRAGMA page_size").get() as any;
-        const freePageResult = pooledDb.db.query("PRAGMA freelist_count").get() as any;
+        const pageCountResult = connection.db.query("PRAGMA page_count").get() as any;
+        const pageSizeResult = connection.db.query("PRAGMA page_size").get() as any;
+        const freePageResult = connection.db.query("PRAGMA freelist_count").get() as any;
         
         // Handle different result formats
         stats.totalPages = pageCountResult?.page_count ?? pageCountResult ?? 0;
@@ -391,9 +331,9 @@ class ConnectionManager {
         // WAL information (if applicable)
         stats.walInfo = null;
         // For in-memory databases or test environment, WAL info should be null
-        if (!this.sharedDatabase && process.env.NODE_ENV !== "test") {
+        if (this.dbPath !== ":memory:" && process.env.NODE_ENV !== "test") {
           try {
-            const walResult = pooledDb.db.query("PRAGMA wal_checkpoint").get();
+            const walResult = connection.db.query("PRAGMA wal_checkpoint").get();
             stats.walInfo = walResult;
           } catch (e) {
             // WAL might not be enabled or supported
@@ -402,7 +342,7 @@ class ConnectionManager {
         }
         
         // Cache information
-        const cacheSizeResult = pooledDb.db.query("PRAGMA cache_size").get() as any;
+        const cacheSizeResult = connection.db.query("PRAGMA cache_size").get() as any;
         stats.cacheSize = cacheSizeResult?.cache_size ?? cacheSizeResult ?? -32768;
         
       } catch (error) {
@@ -428,14 +368,13 @@ const connectionManager = new ConnectionManager();
 // Export the singleton methods
 export const connect = (config?: ConnectionConfig) => connectionManager.connect(config);
 export const close = () => connectionManager.close();
-export const getDatabase = () => connectionManager.acquire();
-export const releaseDatabase = (pooledDb: PooledDatabase) => connectionManager.release(pooledDb);
-export const withConnection = <T>(fn: (pooledDb: PooledDatabase) => Promise<T> | T) => 
+export const getConnection = () => connectionManager.getConnection();
+export const withConnection = <T>(fn: (connection: DatabaseConnection) => Promise<T> | T) => 
   connectionManager.withConnection(fn);
-export const withTransaction = <T>(fn: (pooledDb: PooledDatabase) => Promise<T> | T) => 
+export const withTransaction = <T>(fn: (connection: DatabaseConnection) => Promise<T> | T) => 
   connectionManager.withTransaction(fn);
 export const collections = () => connectionManager.collections();
-export const getPoolStatus = () => connectionManager.getPoolStatus();
+export const getConnectionStatus = () => connectionManager.getConnectionStatus();
 export const isConnected = () => connectionManager.isConnected();
 export const maintenance = () => connectionManager.maintenance();
 export const getDatabaseStats = () => connectionManager.getDatabaseStats();
@@ -450,4 +389,4 @@ export const resetConnection = async () => {
 };
 
 // Export types
-export type { PooledDatabase, ConnectionConfig };
+export type { DatabaseConnection, ConnectionConfig };

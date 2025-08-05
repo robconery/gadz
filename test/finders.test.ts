@@ -9,7 +9,8 @@ import {
   deleteMany,
   deleteOne,
   raw,
-  withConnection
+  withConnection,
+  resetConnection
 } from "../index";
 
 // Set test environment
@@ -42,6 +43,10 @@ class Product {
 }
 
 describe("Extended Operations", () => {
+  
+  afterEach(async () => {
+    await resetConnection();
+  });
 
   describe("where (alias for find)", () => {
     test("should work identically to find", async () => {
