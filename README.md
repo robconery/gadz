@@ -15,6 +15,7 @@ A MongoDB-compatible API with SQLite backend for TypeScript applications. Provid
 - **Multi-Process Ready**: Optimized for concurrent access across multiple Node processes
 - **Collection Class**: ActiveRecord-style ORM pattern
 - **Query Operators**: Support for `$gt`, `$lt`, `$in`, `$exists`, and more
+- **Built-in Validation**: Automatic document validation with `_validate()` method and uniqueness checks
 - **Transactions**: Built-in transaction support with nested transaction capability
 
 ## 📦 Installation
@@ -109,6 +110,194 @@ await User.deleteMany({ age: { $lt: 18 } });
 | `$nin` | Not in array | `{ role: { $nin: ["admin", "super"] } }` |
 | `$exists` | Field exists | `{ phone: { $exists: true } }` |
 
+## ✅ Validation
+
+Gadz supports automatic document validation through the `_validate()` method. When you define this method in your classes, it will be automatically called before saving documents.
+
+### Basic Validation
+
+```typescript
+class User {
+  email: string;
+  age: number;
+  name?: string;
+
+  constructor(data: { email: string; age: number; name?: string }) {
+    this.email = data.email;
+    this.age = data.age;
+    this.name = data.name;
+  }
+
+  async _validate(): Promise<void> {
+    // Required field validation
+    if (!this.email || this.email.length === 0) {
+      throw new Error("Email is required");
+    }
+
+    // Business logic validation
+    if (this.age < 0 || this.age > 120) {
+      throw new Error("Age must be between 0 and 120");
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(this.email)) {
+      throw new Error("Invalid email format");
+    }
+  }
+}
+
+// Validation runs automatically on save
+const user = new User({ email: "invalid-email", age: 25 });
+await save(user); // Throws: "Invalid email format"
+```
+
+### Uniqueness Validation
+
+Use the `isUnique()` helper function to ensure field uniqueness:
+
+```typescript
+import { isUnique } from "gadz";
+
+class User {
+  email: string;
+  username: string;
+
+  constructor(data: { email: string; username: string }) {
+    this.email = data.email;
+    this.username = data.username;
+  }
+
+  async _validate(): Promise<void> {
+    // Check email uniqueness
+    const emailUnique = await isUnique(this, "email");
+    if (!emailUnique) {
+      throw new Error(`Email '${this.email}' already exists`);
+    }
+
+    // Check username uniqueness
+    const usernameUnique = await isUnique(this, "username");
+    if (!usernameUnique) {
+      throw new Error(`Username '${this.username}' is taken`);
+    }
+  }
+}
+```
+
+### Validation Return Types
+
+Your `_validate()` method can:
+
+1. **Throw an Error**: Validation fails with specific message
+2. **Return `false`**: Generic validation failure
+3. **Return nothing/undefined**: Validation passes
+4. **Return truthy value**: Validation passes
+
+```typescript
+class Product {
+  name: string;
+  price: number;
+
+  constructor(data: { name: string; price: number }) {
+    this.name = data.name;
+    this.price = data.price;
+  }
+
+  async _validate(): Promise<boolean> {
+    // Return false for generic failure
+    if (this.price <= 0) return false;
+    
+    // Return true for success
+    return this.name.length > 0;
+  }
+}
+```
+
+### Validation with Updates
+
+The `isUnique()` function automatically handles updates by excluding the current document from uniqueness checks:
+
+```typescript
+// Save initial user
+const user = new User({ email: "john@example.com", username: "john" });
+const saved = await save(user);
+
+// Update same user - validation passes
+saved.username = "john_updated";
+await save(saved); // ✅ Works - excludes current document from uniqueness check
+
+// Try to create new user with same email
+const newUser = new User({ email: "john@example.com", username: "different" });
+await save(newUser); // ❌ Throws: Email already exists
+```
+
+### Inheritance and Custom Validation
+
+```typescript
+class BaseUser {
+  email: string;
+  
+  constructor(data: { email: string }) {
+    this.email = data.email;
+  }
+
+  async _validate(): Promise<void> {
+    if (!this.email) {
+      throw new Error("Email is required");
+    }
+  }
+}
+
+class AdminUser extends BaseUser {
+  permissions: string[];
+
+  constructor(data: { email: string; permissions: string[] }) {
+    super(data);
+    this.permissions = data.permissions;
+  }
+
+  async _validate(): Promise<void> {
+    // Call parent validation first
+    await super._validate();
+
+    // Add admin-specific validation
+    if (!this.permissions || this.permissions.length === 0) {
+      throw new Error("Admin users must have at least one permission");
+    }
+
+    if (!this.permissions.includes('admin')) {
+      throw new Error("Admin users must have admin permission");
+    }
+  }
+}
+```
+
+### When Validation Runs
+
+- ✅ Automatically before `save()` operations
+- ✅ Automatically before `saveMany()` operations  
+- ✅ Works with both functional API and Collection class
+- ❌ Does **not** run on `updateMany()` operations (by design)
+
+### Optional Validation
+
+If a class doesn't define `_validate()`, documents save without validation:
+
+```typescript
+class SimpleData {
+  value: string;
+  
+  constructor(data: { value: string }) {
+    this.value = data.value;
+  }
+  
+  // No _validate method - saves without validation
+}
+
+const data = new SimpleData({ value: "" });
+await save(data); // ✅ Saves successfully
+```
+
 ## ⚙️ Configuration
 
 ```typescript
@@ -152,6 +341,7 @@ All tests use isolated in-memory databases for fast, reliable testing.
 - `findOne<T>(constructor, filter?)` - Find single document
 - `updateMany<T>(constructor, filter, update, options?)` - Update multiple
 - `deleteMany<T>(constructor, filter)` - Delete multiple
+- `isUnique<T>(document, fieldName)` - Check field uniqueness for validation
 - `raw<T>(sql)` - Execute raw SQL
 
 ### Collection Class
