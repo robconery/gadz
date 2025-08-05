@@ -1,27 +1,35 @@
 # 🚀 Gadz
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Bun](https://img.shields.io/badge/Bun-1.0+-000000?logo=bun&logoColor=white)](https://bun.sh)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-3.0+-003B57?logo=sqlite&logoColor=white)](https://sqlite.org/)
+[![Jest](https://img.shields.io/badge/Jest-29+-C21325?logo=jest&logoColor=white)](https://jestjs.io/)
 
 A MongoDB-compatible API with SQLite backend for TypeScript applications. Provides type-safe document storage with familiar MongoDB query syntax.
+
+Built for Node.js 18+ with better-sqlite3 for optimal performance and reliability.
 
 ## ✨ Features
 
 - **MongoDB-Style API**: Use familiar MongoDB operations like `find()`, `save()`, `updateMany()`
 - **Type Safety**: Full TypeScript support with generic types
-- **SQLite Backend**: Fast, embedded database with WAL mode for concurrent access
-- **Multi-Process Ready**: Optimized for concurrent access across multiple Node processes
+- **SQLite Backend**: Fast, embedded database with WAL mode for concurrent access (powered by better-sqlite3)
+- **Multi-Process Ready**: Optimized for concurrent access across multiple Node.js processes
 - **Collection Class**: ActiveRecord-style ORM pattern
 - **Query Operators**: Support for `$gt`, `$lt`, `$in`, `$exists`, and more
 - **Built-in Validation**: Automatic document validation with `_validate()` method and uniqueness checks
 - **Transactions**: Built-in transaction support with nested transaction capability
 
+## 📋 Requirements
+
+- **Node.js**: 18.0.0 or higher
+- **TypeScript**: 5.0.0 or higher (peer dependency)
+
 ## 📦 Installation
 
 ```bash
-bun add gadz
+npm install gadz
 ```
 
 ## 🎯 Quick Start
@@ -439,10 +447,10 @@ Gadz is optimized for multi-process environments (PM2, cluster mode, etc.):
 ## 🧪 Testing
 
 ```bash
-bun test
+npm test
 ```
 
-All tests use isolated in-memory databases for fast, reliable testing.
+All tests use isolated in-memory databases for fast, reliable testing. The project uses Jest as the testing framework.
 
 ## 📝 API Reference
 
@@ -469,8 +477,9 @@ All tests use isolated in-memory databases for fast, reliable testing.
 
 ## 📊 Performance
 
+- **better-sqlite3**: High-performance synchronous SQLite driver for Node.js
 - **WAL Mode**: Concurrent read/write operations across multiple processes
-- **Single Connection**: One optimized connection per Node process
+- **Single Connection**: One optimized connection per Node.js process
 - **JSON Storage**: Flexible document structure with SQLite's JSON functions
 - **Optimized Queries**: Proper indexing on ID and timestamps
 - **Nested Transactions**: Savepoint-based transaction nesting for complex operations
